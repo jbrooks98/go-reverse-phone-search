@@ -1,11 +1,11 @@
-package phonesearch
+package go_reverse_phone_search
 
 import (
 	"testing"
 )
 
 func TestNumberScraping(t *testing.T) {
-	results := scrapeNumber("./tests/results.html")
+	results := scrapeNumber("./testfiles/results.html")
 
 	for _, r := range results {
 		if r.DetailLink == "" || r.FullName == "" {
@@ -15,7 +15,7 @@ func TestNumberScraping(t *testing.T) {
 }
 
 func TestAddressScraping(t *testing.T) {
-	results := scrapeAddress("./tests/details.html")
+	results := scrapeAddress("./testfiles/details.html")
 	if results.FullAddress == "" {
 		t.Error("scraping full address failed")
 	}

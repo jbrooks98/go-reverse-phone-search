@@ -1,4 +1,4 @@
-package phonesearch
+package go_reverse_phone_search
 
 import (
 	// standard library packages
@@ -17,6 +17,7 @@ type DetailResuts struct {
 }
 
 type Address struct {
+	iscurrent bool
 	street1 string
 	street2 string
 	street3 string
