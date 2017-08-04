@@ -28,17 +28,16 @@ type Person struct {
 	FullName    string `json:"fn"`
 	AddressLink string `json: "address_link"`
 	Phone       PhoneNumber
-	Address     *Address
+	Address     Address
 }
 
 type PhoneNumber struct {
 	Number string `json:"pn"`
 }
 
-func (a *App) Initialize(dbname string) {
-	a.DB = NewSession(dbname)
+func (a *App) Initialize(dbName string) {
+	a.DB = NewSession(dbName)
 	CreateDBTables(a.DB)
-	a.DB.Close()
 	a.initializeRoutes()
 }
 
@@ -49,7 +48,7 @@ func (a *App) Run(addr string) {
 func (a *App) initializeRoutes() {
 	// TODO update regex to accept a phone number
 	http.HandleFunc("/reverse/[a-z]{10}/", a.getPersonByNumber)
-	http.Handle("/", http.FileServer(http.Dir("./static")))
+	// http.Handle("/", http.FileServer(http.Dir("./static")))
 }
 
 func isValidPhoneNumber(number string) bool {
@@ -72,7 +71,7 @@ func (a *App) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
 		createJSONResponse(w, http.StatusBadRequest, message)
 	}
 	fullName := r.FormValue("fn")
-	person, err := GetPersonByNumber(phoneNumber, a.DB)
+	person, err := GetPeopleByNumber(phoneNumber, a.DB)
 	if err != nil {
 		switch err {
 		case sql.ErrNoRows:
@@ -82,7 +81,11 @@ func (a *App) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
 
 			addressURL := baseURL + person.AddressLink
 			addressDoc := urlDoc{addressURL}.getDoc()
-			person.Address = ScrapeAddress(addressDoc)
+			address := ScrapeAddress(addressDoc)
+			person.Address.State = address.State
+			person.Address.City = address.City
+			person.Address.Street = address.Street
+			person.Address.Zip = address.Zip
 			person.Phone.Number = phoneNumber
 			if err != nil {
 				message := map[string]string{"error": err.Error()}
