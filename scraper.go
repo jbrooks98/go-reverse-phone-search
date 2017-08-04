@@ -80,6 +80,8 @@ func GetPeopleFromScraper(doc *goquery.Document, fullName string) (*Person, erro
 
 	for i := 0; i <= len(peopleResults); i++ {
 		if findNameMatch(peopleResults[i].FullName, fullName) {
+			person.AddressLink = peopleResults[i].DetailLink
+			person.FullName = peopleResults[i].FullName
 			return person, nil
 		}
 	}
@@ -101,13 +103,13 @@ func scrapeNumber(doc *goquery.Document) []*SearchResults {
 
 func cleanAddressField(s string) string {
 	addressStr := strings.TrimSpace(s)
-	// remove multiple whitespaces inside the string
+	// removes multiple whitespaces inside the string
 	re_inside_whtsp := regexp.MustCompile(`[\s\p{Zs}]{2,}`)
 
 	return re_inside_whtsp.ReplaceAllString(addressStr, " ")
 }
 
-func scrapeAddress(doc *goquery.Document) *Address {
+func ScrapeAddress(doc *goquery.Document) *Address {
 	d := &DetailResults{}
 	d.FullAddress = doc.Find(".link-to-more").First().Text()
 	return d.parseFullAddress()

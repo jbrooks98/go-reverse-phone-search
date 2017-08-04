@@ -155,7 +155,7 @@ func addPersonAddress(person_id, address_id int64, db *sql.DB) int64 {
 
 func addPersonNumber(person_id, number_id int64, db *sql.DB) int64 {
 	sqlAddPersonNumber := `
-	INSERT OR REPLACE INTO person_address(
+	INSERT OR REPLACE INTO person_number(
 		person_id,
 		number_id
 	) values(?, ?)
@@ -174,7 +174,13 @@ func addPersonNumber(person_id, number_id int64, db *sql.DB) int64 {
 }
 
 func GetPersonByNumber(number string, db *sql.DB) ([]Person, error) {
-	rows, err := db.Query("SELECT phone_number.phonenumber, fullname FROM person_phone_number WHERE phonenumber=?", number)
+	selectQuery := `
+	SELECT n.number from phone_number n
+	left Join person_number p on p.id = n.person_id.
+	left join person_address a on a.person_id = p.id
+	WHERE phone_number.number = ?
+	`
+	rows, err := db.Query(selectQuery, number)
 	checkErr(err)
 	defer rows.Close()
 

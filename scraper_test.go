@@ -24,7 +24,7 @@ func TestNumberScraping(t *testing.T) {
 func TestAddressScraping(t *testing.T) {
 	filePath := getAbsPath("/testfiles/details.html")
 	doc := FileDoc{filePath}.getDoc()
-	result := scrapeAddress(doc)
+	result := ScrapeAddress(doc)
 	if result.Street != "1 Blue Spruce Dr" {
 		t.Error("scraping address street failed")
 	}
@@ -39,20 +39,3 @@ func TestAddressScraping(t *testing.T) {
 	}
 
 }
-
-//func TestAddressParser(t *testing.T) {
-//	expectedResult := &Address{}
-//	expectedResult.Street1 = "1 Blue Spruce Dr"
-//	expectedResult.City = "Bear"
-//	expectedResult.State = "DE"
-//	expectedResult.Zip = "19701-4125"
-//
-//	result := &DetailResuts{}
-//	result.FullAddress = "1 Blue Spruce Dr Bear, DE 19701-4125"
-//
-//	parsedAddress := result.parseFullAddress()
-//
-//	if parsedAddress != expectedResult {
-//		t.Error("parsing full address failed")
-//	}
-//}
