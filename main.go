@@ -1,5 +1,4 @@
-package go_reverse_phone_search
-
+package main
 
 import (
 	"os"
@@ -7,8 +6,6 @@ import (
 
 func main() {
 	a := App{}
-	a.Initialize(
-		os.Getenv("APP_DB_NAME"))
+	a.Initialize(os.Getenv("APP_DB_NAME"))
 	a.Run(":8080")
 }
-

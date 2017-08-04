@@ -1,11 +1,9 @@
-package go_reverse_phone_search
+package main
 
 import (
 	"database/sql"
 	_ "github.com/mattn/go-sqlite3"
 )
-
-// Connect to the local Db and set up the database.
 
 func NewSession(name string) *sql.DB {
 	db, err := sql.Open("sqlite3", name)
@@ -15,8 +13,6 @@ func NewSession(name string) *sql.DB {
 }
 
 func CreatePersonTable(db *sql.DB) {
-	// think about just storing the full name.  because it comes back from the scraper as just text we will have issues
-	// parsing on suffix
 	sqlTable := `
 	CREATE TABLE IF NOT EXISTS person(
 		id INTEGER PRIMARY KEY,
@@ -42,7 +38,6 @@ func CreateAddressTable(db *sql.DB) {
 	_, err := db.Exec(sqlTable)
 	checkErr(err)
 }
-
 
 func CreatePhoneNumberTable(db *sql.DB) {
 	sqlTable := `
@@ -78,7 +73,7 @@ func CreatePersonPhoneNumberTable(db *sql.DB) {
 	checkErr(err)
 }
 
-func AddPerson(name string, db *sql.DB) {
+func addPerson(name string, db *sql.DB) int64 {
 	sqlAddPerson := `
 	INSERT OR REPLACE INTO person(
 		id,
@@ -89,11 +84,16 @@ func AddPerson(name string, db *sql.DB) {
 	checkErr(err1)
 	defer stmt.Close()
 
-	_, err2 := stmt.Exec(name)
+	r, err2 := stmt.Exec(name)
 	checkErr(err2)
+
+	id, err3 := r.LastInsertId()
+	checkErr(err3)
+
+	return id
 }
 
-func AddNumber(number string, db *sql.DB) {
+func addNumber(number string, db *sql.DB) int64 {
 	sqlAddNumber := `
 	INSERT OR REPLACE INTO phone_number(
 		id,
@@ -104,11 +104,16 @@ func AddNumber(number string, db *sql.DB) {
 	checkErr(err1)
 	defer stmt.Close()
 
-	_, err2 := stmt.Exec(number)
+	r, err2 := stmt.Exec(number)
 	checkErr(err2)
+
+	id, err3 := r.LastInsertId()
+	checkErr(err3)
+
+	return id
 }
 
-func AddAddress(a *Address, db *sql.DB) {
+func addAddress(a *Address, db *sql.DB) int64 {
 	sqlAddNumber := `
 	INSERT OR REPLACE INTO phone_number(
 		iscurrent,
@@ -124,11 +129,16 @@ func AddAddress(a *Address, db *sql.DB) {
 	checkErr(err1)
 	defer stmt.Close()
 
-	_, err2 := stmt.Exec(a.street1, a.street2, a.street3, a.city, a.state, a.zip)
+	r, err2 := stmt.Exec(a.Street1, a.Street2, a.Street3, a.City, a.State, a.Zip)
 	checkErr(err2)
+
+	id, err3 := r.LastInsertId()
+	checkErr(err3)
+
+	return id
 }
 
-func AddPersonAddress(db *sql.DB, person_id, address_id int) {
+func addPersonAddress(person_id, address_id int64, db *sql.DB) int64 {
 	sqlAddPersonAddress := `
 	INSERT OR REPLACE INTO person_address(
 		person_id,
@@ -139,36 +149,66 @@ func AddPersonAddress(db *sql.DB, person_id, address_id int) {
 	checkErr(err1)
 	defer stmt.Close()
 
-	_, err2 := stmt.Exec(person_id, address_id)
+	r, err2 := stmt.Exec(person_id, address_id)
 	checkErr(err2)
+
+	id, err3 := r.LastInsertId()
+	checkErr(err3)
+
+	return id
 }
 
-type people struct {
-	Number    string  `json:"pn"`
-	FullName  string  `json:"fn"`
-	Street1   string  `json:"st1"`
-	Street2   string  `json:"st2"`
-	Street3   string  `json:"st3"`
-	City      string  `json:"city"`
-	State     string  `json:"state"`
-	Zip       string  `json:"zip"`
+func addPersonNumber(person_id, number_id int64, db *sql.DB) int64 {
+	sqlAddPersonNumber := `
+	INSERT OR REPLACE INTO person_address(
+		person_id,
+		number_id
+	) values(?, ?)
+	`
+	stmt, err1 := db.Prepare(sqlAddPersonNumber)
+	checkErr(err1)
+	defer stmt.Close()
+
+	r, err2 := stmt.Exec(person_id, number_id)
+	checkErr(err2)
+
+	id, err3 := r.LastInsertId()
+	checkErr(err3)
+
+	return id
 }
 
-func GetPeopleByNumber(number string, db *sql.DB)  ([]people, error) {
+func GetPersonByNumber(number string, db *sql.DB) ([]Person, error) {
 	rows, err := db.Query("SELECT phone_number.phonenumber, fullname FROM person_phone_number WHERE phonenumber=?", number)
 	checkErr(err)
 	defer rows.Close()
 
-	people := []people{}
+	person := []Person{}
 	for rows.Next() {
-		var p people
-		err = rows.Scan(&p.Number, &p.FullName, &p.Street1, &p.Street2, &p.Street3, &p.City, &p.State, &p.Zip)
+		var p Person
+		err = rows.Scan(&p.Phone.Number, &p.FullName, &p.Address.Street1, &p.Address.Street2, &p.Address.Street3, &p.Address.City, &p.Address.State, &p.Address.Zip)
 		checkErr(err)
 
-		people = append(people, p)
+		person = append(person, p)
 	}
-	return people, nil
+	return person, nil
 
+}
+
+func (p *Person) Save(db *sql.DB) {
+	personID := addPerson(p.FullName, db)
+	numberID := addNumber(p.Phone.Number, db)
+	address := &Address{
+		Street1: p.Address.Street1,
+		Street2: p.Address.Street2,
+		Street3: p.Address.Street3,
+		City:    p.Address.City,
+		State:   p.Address.State,
+		Zip:     p.Address.Zip,
+	}
+	addressID := addAddress(address, db)
+	_ = addPersonAddress(personID, addressID, db)
+	_ = addPersonNumber(personID, numberID, db)
 }
 
 func CreateDBTables(db *sql.DB) {

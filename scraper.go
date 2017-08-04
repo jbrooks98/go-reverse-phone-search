@@ -1,36 +1,62 @@
-package go_reverse_phone_search
+package main
 
 import (
 	// standard library packages
 	"log"
-    // 3rd party packages
+	// 3rd party packages
+	"errors"
 	"github.com/PuerkitoBio/goquery"
+	"os"
 )
+
 type SearchResults struct {
 	DetailLink string
-	FullName string
+	FullName   string
 }
 
 type DetailResuts struct {
 	FullAddress string
-
-}
-
-type Address struct {
-	iscurrent bool
-	street1 string
-	street2 string
-	street3 string
-	city    string
-	state   string
-	zip     string
 }
 
 func (d *DetailResuts) parseFullAddress() *Address {
 	a := &Address{}
 	return a
 }
-// var scraperURL = "https://www.truepeoplesearch.com/results?phoneno="
+
+type scraperDoc interface {
+	getDoc() *goquery.Document
+}
+
+type FileDoc struct {
+	FilePath string
+}
+
+type urlDoc struct {
+	urlPath string
+}
+// used for testing
+func (f FileDoc) getDoc() *goquery.Document {
+	doc := &goquery.Document{}
+	d, e := os.Open(f.FilePath)
+	if e != nil {
+		log.Fatal(e)
+	}
+	defer d.Close()
+	doc, err := goquery.NewDocumentFromReader(d)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return doc
+}
+
+func (u urlDoc ) getDoc() *goquery.Document {
+	doc := &goquery.Document{}
+	doc, err := goquery.NewDocument(u.urlPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return doc
+}
 
 //func parseFullName(fn []string) SearchResults {
 //	firstName := fullName[0]
@@ -47,14 +73,25 @@ func (d *DetailResuts) parseFullAddress() *Address {
 //		lastName := fullName[2]
 //		suffix := fullName[3]
 //	}
-//
-//}
+////}
 
-func scrapeNumber(url string) []*SearchResults {
-	doc, err := goquery.NewDocument(url)
-	if err != nil {
-		log.Fatal(err)
+func findNameMatch(inputName, correctName string) bool {
+	return inputName == correctName
+}
+
+func GetPeopleFromScraper(doc *goquery.Document, fullName string) (*Person, error) {
+	person := &Person{}
+	peopleResults := scrapeNumber(doc)
+
+	for i := 0; i <= len(peopleResults); i++ {
+		if findNameMatch(peopleResults[i].FullName, fullName) {
+			return person, nil
+		}
 	}
+	return person, errors.New("Cannot find a name match")
+}
+
+func scrapeNumber(doc *goquery.Document) []*SearchResults {
 	r := []*SearchResults{}
 	doc.Find(".card.card-block.shadow-form.card-summary").Each(func(i int, s *goquery.Selection) {
 		sr := &SearchResults{}
@@ -69,12 +106,8 @@ func scrapeNumber(url string) []*SearchResults {
 	return r
 }
 
-func scrapeAddress(url string) *DetailResuts {
-    d := &DetailResuts{}
-	doc, err := goquery.NewDocument(url)
-	if err != nil {
-		log.Fatal(err)
-	}
+func scrapeAddress(doc *goquery.Document) *DetailResuts {
+	d := &DetailResuts{}
 	doc.Find(".link-to-more").Each(func(i int, s *goquery.Selection) {
 		d.FullAddress = s.Text()
 	})
