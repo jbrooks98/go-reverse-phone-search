@@ -3,17 +3,17 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
-	"github.com/gorilla/mux"
 	"log"
 	"net/http"
 	"strconv"
+	"github.com/renstrom/fuzzysearch/fuzzy"
+	"sort"
 )
 
 var baseURL = "https://www.truepeoplesearch.com"
 var scraperURL = baseURL + "/results?phoneno="
 
 type App struct {
-	Router *mux.Router
 	DB     *sql.DB
 }
 
@@ -26,7 +26,8 @@ type Address struct {
 
 type Person struct {
 	FullName    string `json:"fn"`
-	AddressLink string `json: "address_link"`
+	AddressLink string `json:"address_link"`
+	MatchRank   int    `json:"rank"`
 	Phone       PhoneNumber
 	Address     Address
 }
@@ -49,6 +50,10 @@ func (a *App) initializeRoutes() {
 	// TODO update regex to accept a phone number
 	http.HandleFunc("/reverse/[a-z]{10}/", a.getPersonByNumber)
 	// http.Handle("/", http.FileServer(http.Dir("./static")))
+}
+
+func rankResults(userInput string, value string) int {
+	return fuzzy.RankMatch(userInput, value)
 }
 
 func isValidPhoneNumber(number string) bool {
@@ -100,8 +105,15 @@ func (a *App) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(person) > 1 {
-		// TODO search by name
-		log.Println(fullName)
+		winner := &Person{}
+		winner.MatchRank = 99999
+		for i := range person {
+			person[i].MatchRank = rankResults(fullName, person[i].FullName)
+			if person[i].MatchRank < winner.MatchRank {
+				winner = person[i]
+			}
+		}
+		log.Println(winner.FullName)
 	}
 }
 
