@@ -27,9 +27,7 @@ func CreateAddressTable(db *sql.DB) {
 	sqlTable := `
 	CREATE TABLE IF NOT EXISTS address(
 	id INTEGER PRIMARY KEY,
-	street1 varchar(150),
-	street2 varchar(150),
-	street3 varchar(150),
+	street varchar(150),
 	city varchar(150),
 	state varchar(20),
 	zip varchar(20),
@@ -116,20 +114,17 @@ func addNumber(number string, db *sql.DB) int64 {
 func addAddress(a *Address, db *sql.DB) int64 {
 	sqlAddNumber := `
 	INSERT OR REPLACE INTO phone_number(
-		iscurrent,
-		street1,
-		street2,
-		street3,
+		street,
 		city,
 		state,
 		zip
-	) values(?, ?, ?, ?, ?, ?, ?)
+	) values(?, ?, ?, ?)
 	`
 	stmt, err1 := db.Prepare(sqlAddNumber)
 	checkErr(err1)
 	defer stmt.Close()
 
-	r, err2 := stmt.Exec(a.Street1, a.Street2, a.Street3, a.City, a.State, a.Zip)
+	r, err2 := stmt.Exec(a.Street, a.City, a.State, a.Zip)
 	checkErr(err2)
 
 	id, err3 := r.LastInsertId()
@@ -186,7 +181,7 @@ func GetPersonByNumber(number string, db *sql.DB) ([]Person, error) {
 	person := []Person{}
 	for rows.Next() {
 		var p Person
-		err = rows.Scan(&p.Phone.Number, &p.FullName, &p.Address.Street1, &p.Address.Street2, &p.Address.Street3, &p.Address.City, &p.Address.State, &p.Address.Zip)
+		err = rows.Scan(&p.Phone.Number, &p.FullName, &p.Address.Street, &p.Address.City, &p.Address.State, &p.Address.Zip)
 		checkErr(err)
 
 		person = append(person, p)
@@ -199,12 +194,10 @@ func (p *Person) Save(db *sql.DB) {
 	personID := addPerson(p.FullName, db)
 	numberID := addNumber(p.Phone.Number, db)
 	address := &Address{
-		Street1: p.Address.Street1,
-		Street2: p.Address.Street2,
-		Street3: p.Address.Street3,
-		City:    p.Address.City,
-		State:   p.Address.State,
-		Zip:     p.Address.Zip,
+		Street: p.Address.Street,
+		City:   p.Address.City,
+		State:  p.Address.State,
+		Zip:    p.Address.Zip,
 	}
 	addressID := addAddress(address, db)
 	_ = addPersonAddress(personID, addressID, db)

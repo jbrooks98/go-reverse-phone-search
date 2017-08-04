@@ -16,12 +16,10 @@ type App struct {
 }
 
 type Address struct {
-	Street1 string `json:"st1"`
-	Street2 string `json:"st2"`
-	Street3 string `json:"st3"`
-	City    string `json:"city"`
-	State   string `json:"state"`
-	Zip     string `json:"zip"`
+	Street string `json:"st"`
+	City   string `json:"city"`
+	State  string `json:"state"`
+	Zip    string `json:"zip"`
 }
 
 type Person struct {
@@ -49,6 +47,7 @@ func (a *App) Run(addr string) {
 func (a *App) initializeRoutes() {
 	// TODO update regex to accept a phone number
 	a.Router.HandleFunc("/number/{phone:[0-9]+}", a.getPersonByNumber).Methods("GET")
+	// a.Router.HandleFunc("/", a.get)
 }
 
 func (a *App) getPersonByNumber(w http.ResponseWriter, r *http.Request) {

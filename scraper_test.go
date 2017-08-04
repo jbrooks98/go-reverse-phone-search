@@ -1,9 +1,9 @@
 package main
 
 import (
-	"testing"
-	"runtime"
 	"path"
+	"runtime"
+	"testing"
 )
 
 func getAbsPath(p string) string {
@@ -16,36 +16,43 @@ func TestNumberScraping(t *testing.T) {
 	filePath := getAbsPath("/testfiles/results.html")
 	doc := FileDoc{filePath}.getDoc()
 	results := scrapeNumber(doc)
-
-	for _, r := range results {
-		if r.DetailLink == "" || r.FullName == "" {
-			t.Error("scraping phone number failed")
-		}
+	if results[0].DetailLink != "/results?phoneno=3027502606&rid=0x0" || results[0].FullName != "Donald James Willis Sr" {
+		t.Error("scraping phone number failed")
 	}
 }
 
 func TestAddressScraping(t *testing.T) {
-	filePath := getAbsPath("/testfiles/results.html")
+	filePath := getAbsPath("/testfiles/details.html")
 	doc := FileDoc{filePath}.getDoc()
-	results := scrapeAddress(doc)
-	if results.FullAddress == "" {
-		t.Error("scraping full address failed")
+	result := scrapeAddress(doc)
+	if result.Street != "1 Blue Spruce Dr" {
+		t.Error("scraping address street failed")
 	}
+	if result.State != "DE" {
+		t.Error("scraping address state failed")
+	}
+	if result.City != "Bear" {
+		t.Error("scraping address city failed")
+	}
+	if result.Zip != "19701-4125" {
+		t.Error("scraping address zip failed")
+	}
+
 }
 
-func TestAddressParser(t *testing.T) {
-	expectedResult := &Address{}
-	expectedResult.Street1 = "1 Blue Spruce Dr"
-	expectedResult.City = "Bear"
-	expectedResult.State = "DE"
-	expectedResult.Zip = "19701-4125"
-
-	result := &DetailResuts{}
-	result.FullAddress = "1 Blue Spruce Dr<br/>Bear, DE 19701-4125"
-
-	parsedAddress := result.parseFullAddress()
-
-	if parsedAddress != expectedResult {
-		t.Error("parsing full address failed")
-	}
-}
+//func TestAddressParser(t *testing.T) {
+//	expectedResult := &Address{}
+//	expectedResult.Street1 = "1 Blue Spruce Dr"
+//	expectedResult.City = "Bear"
+//	expectedResult.State = "DE"
+//	expectedResult.Zip = "19701-4125"
+//
+//	result := &DetailResuts{}
+//	result.FullAddress = "1 Blue Spruce Dr Bear, DE 19701-4125"
+//
+//	parsedAddress := result.parseFullAddress()
+//
+//	if parsedAddress != expectedResult {
+//		t.Error("parsing full address failed")
+//	}
+//}
