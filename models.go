@@ -127,6 +127,7 @@ func GetPeopleByNumber(phnum string, db *sql.DB) ([]*Person, error) {
 }
 
 func (p *Person) Save(db *sql.DB) int64 {
+	// TODO wrap in a transaction
 	numberID := addNumber(p.Phone.Number, db)
 	address := &Address{
 		Street: p.Address.Street,

@@ -7,7 +7,8 @@ import (
 	"net/http"
 	"strconv"
 	"github.com/renstrom/fuzzysearch/fuzzy"
-	"sort"
+	"path/filepath"
+	"os"
 )
 
 var baseURL = "https://www.truepeoplesearch.com"
@@ -48,8 +49,11 @@ func (a *App) Run(addr string) {
 
 func (a *App) initializeRoutes() {
 	// TODO update regex to accept a phone number
-	http.HandleFunc("/reverse/[a-z]{10}/", a.getPersonByNumber)
-	// http.Handle("/", http.FileServer(http.Dir("./static")))
+	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+	templateDir := dir + "/templates"
+	// [a-z]{10}/
+	http.HandleFunc("/search/", a.getPersonByNumber)
+	http.Handle("/", http.FileServer(http.Dir(templateDir)))
 }
 
 func rankResults(userInput string, value string) int {
@@ -66,55 +70,65 @@ func isValidPhoneNumber(number string) bool {
 	}
 	return true
 }
+
 func (a *App) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		createJSONResponse(w, http.StatusMethodNotAllowed, "Request method not accepted")
 	}
-	phoneNumber := r.FormValue("pn")
+	phoneNumber := "3027502606" // r.FormValue("pn")
 	if !isValidPhoneNumber(phoneNumber) {
 		message := map[string]string{"error": "Invalid phone number"}
 		createJSONResponse(w, http.StatusBadRequest, message)
 	}
-	fullName := r.FormValue("fn")
-	person, err := GetPeopleByNumber(phoneNumber, a.DB)
+	fullName := "Jason E Brooks" // r.FormValue("fn")
+	people, err := GetPeopleByNumber(phoneNumber, a.DB)
 	if err != nil {
-		switch err {
-		case sql.ErrNoRows:
-			// number not found in the DB so get from the scraper
-			doc := urlDoc{scraperURL}.getDoc()
-			person, err := GetPeopleFromScraper(doc, fullName)
-
-			addressURL := baseURL + person.AddressLink
-			addressDoc := urlDoc{addressURL}.getDoc()
-			address := ScrapeAddress(addressDoc)
-			person.Address.State = address.State
-			person.Address.City = address.City
-			person.Address.Street = address.Street
-			person.Address.Zip = address.Zip
-			person.Phone.Number = phoneNumber
-			if err != nil {
-				message := map[string]string{"error": err.Error()}
-				createJSONResponse(w, http.StatusNotFound, message)
-			} else {
-				// TODO save info in DB
-				person.Save(a.DB)
-			}
-		default:
-			createJSONResponse(w, http.StatusInternalServerError, err.Error())
-		}
-		return
+		createJSONResponse(w, http.StatusInternalServerError, err)
 	}
-	if len(person) > 1 {
+	if len(people) < 1 {
+		// number not found in the DB so get from the scraper
+		doc := urlDoc{scraperURL + phoneNumber}.getDoc()
+		person, err := GetPersonFromScraper(doc, fullName)
+		if err != nil {
+			message := map[string]string{"error": err.Error()}
+			createJSONResponse(w, http.StatusNotFound, message)
+		}
+        log.Println("came back from scraper")
+		//TODO If link is not populated due to not finding the matching name will throw http panic - indoex out of range
+		addressURL := baseURL + person.AddressLink
+		log.Println(addressURL)
+		addressDoc := urlDoc{addressURL}.getDoc()
+		address := ScrapeAddress(addressDoc)
+		log.Println("scraped the address")
+		person.Address.State = address.State
+		person.Address.City = address.City
+		person.Address.Street = address.Street
+		person.Address.Zip = address.Zip
+		person.Phone.Number = phoneNumber
+
+		person.Save(a.DB)
+		log.Println("saved to db")
+		createJSONResponse(w, http.StatusOK, person)
+	}
+	if len(people) > 1 {
 		winner := &Person{}
 		winner.MatchRank = 99999
-		for i := range person {
-			person[i].MatchRank = rankResults(fullName, person[i].FullName)
-			if person[i].MatchRank < winner.MatchRank {
-				winner = person[i]
+		for i := range people {
+			people[i].MatchRank = rankResults(fullName, people[i].FullName)
+			if people[i].MatchRank < winner.MatchRank {
+				winner = people[i]
 			}
 		}
-		log.Println(winner.FullName)
+		if winner.FullName != "" {
+			createJSONResponse(w, http.StatusOK, winner)
+		} else {
+			createJSONResponse(w, http.StatusNotFound, "No results found")
+		}
+	} else {
+		log.Println("found in db")
+		createJSONResponse(w, http.StatusOK, people)
 	}
+
 }
 
 func createJSONResponse(w http.ResponseWriter, code int, payload interface{}) {

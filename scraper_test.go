@@ -13,7 +13,7 @@ func getAbsPath(p string) string {
 }
 
 func TestNumberScraping(t *testing.T) {
-	filePath := getAbsPath("/testfiles/results.html")
+	filePath := getAbsPath("/testfiles/results.templates")
 	doc := FileDoc{filePath}.getDoc()
 	results := scrapeNumber(doc)
 	if results[0].DetailLink != "/results?phoneno=3027502606&rid=0x0" || results[0].FullName != "Donald James Willis Sr" {
@@ -22,7 +22,7 @@ func TestNumberScraping(t *testing.T) {
 }
 
 func TestAddressScraping(t *testing.T) {
-	filePath := getAbsPath("/testfiles/details.html")
+	filePath := getAbsPath("/testfiles/details.templates")
 	doc := FileDoc{filePath}.getDoc()
 	result := ScrapeAddress(doc)
 	if result.Street != "1 Blue Spruce Dr" {

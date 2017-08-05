@@ -74,14 +74,16 @@ func findNameMatch(inputName, correctName string) bool {
 	return inputName == correctName
 }
 
-func GetPeopleFromScraper(doc *goquery.Document, fullName string) (*Person, error) {
+func GetPersonFromScraper(doc *goquery.Document, fullName string) (*Person, error) {
 	person := &Person{}
 	peopleResults := scrapeNumber(doc)
-
-	for i := 0; i <= len(peopleResults); i++ {
+    log.Println(peopleResults[0].FullName)
+	for i := range peopleResults {
+		log.Println("i", i)
 		if findNameMatch(peopleResults[i].FullName, fullName) {
 			person.AddressLink = peopleResults[i].DetailLink
 			person.FullName = peopleResults[i].FullName
+			log.Println("addy", person.AddressLink)
 			return person, nil
 		}
 	}
@@ -98,6 +100,7 @@ func scrapeNumber(doc *goquery.Document) []*SearchResults {
 		})
 		r = append(r, sr)
 	})
+	log.Println(r[0].DetailLink)
 	return r
 }
 
