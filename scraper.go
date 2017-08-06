@@ -91,6 +91,7 @@ func GetPersonFromScraper(doc *goquery.Document, fullName string) (*Person, erro
 }
 
 func scrapeNumber(doc *goquery.Document) []*SearchResults {
+	// TODO handle captcha issue - just alert user to handle captcha manually
 	r := []*SearchResults{}
 	doc.Find(".card.card-block.shadow-form.card-summary").Each(func(i int, s *goquery.Selection) {
 		sr := &SearchResults{}

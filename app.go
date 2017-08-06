@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"strconv"
 	"github.com/renstrom/fuzzysearch/fuzzy"
-	"path/filepath"
-	"os"
 )
 
 var baseURL = "https://www.truepeoplesearch.com"
@@ -49,11 +47,9 @@ func (a *App) Run(addr string) {
 
 func (a *App) initializeRoutes() {
 	// TODO update regex to accept a phone number
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	templateDir := dir + "/templates"
-	// [a-z]{10}/
 	http.HandleFunc("/search/", a.getPersonByNumber)
-	http.Handle("/", http.FileServer(http.Dir(templateDir)))
+	fs := http.FileServer(http.Dir("static"))
+	http.Handle("/", fs)
 }
 
 func rankResults(userInput string, value string) int {
@@ -72,15 +68,18 @@ func isValidPhoneNumber(number string) bool {
 }
 
 func (a *App) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
+	log.Println("request heard")
 	if r.Method != "GET" {
 		createJSONResponse(w, http.StatusMethodNotAllowed, "Request method not accepted")
 	}
 	phoneNumber := "3027502606" // r.FormValue("pn")
+	log.Println(phoneNumber)
 	if !isValidPhoneNumber(phoneNumber) {
 		message := map[string]string{"error": "Invalid phone number"}
 		createJSONResponse(w, http.StatusBadRequest, message)
 	}
-	fullName := "Jason E Brooks" // r.FormValue("fn")
+	fullName := "Jason E Brooks"// r.FormValue("fn")
+	log.Println(fullName)
 	people, err := GetPeopleByNumber(phoneNumber, a.DB)
 	if err != nil {
 		createJSONResponse(w, http.StatusInternalServerError, err)
