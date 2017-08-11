@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	_ "github.com/mattn/go-sqlite3"
+	"log"
 )
 
 func NewSession(name string) *sql.DB {
@@ -14,11 +15,12 @@ func NewSession(name string) *sql.DB {
 
 func CreateAddressTable(db *sql.DB) {
 	sqlTable := `CREATE TABLE IF NOT EXISTS address(
-	id INTEGER PRIMARY KEY,
-	street VARCHAR(150),
-	city VARCHAR(150),
-	state VARCHAR(20),
-	zip VARCHAR(20)
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	street VARCHAR(150) NOT NULL,
+	city VARCHAR(150) NOT NULL,
+	state VARCHAR(20) NOT NULL,
+	zip VARCHAR(20) NOT NULL,
+    CONSTRAINT unique_address UNIQUE (street, city, state, zip)
 	)`
 	_, err := db.Exec(sqlTable)
 	checkErr(err)
@@ -26,8 +28,9 @@ func CreateAddressTable(db *sql.DB) {
 
 func CreatePhoneNumberTable(db *sql.DB) {
 	sqlTable := `CREATE TABLE IF NOT EXISTS phone_number(
-		id INTEGER PRIMARY KEY,
-		number VARCHAR(15) NOT NULL
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		number VARCHAR(15) NOT NULL,
+		CONSTRAINT unique_number UNIQUE (number)
 	)`
 	_, err := db.Exec(sqlTable)
 	checkErr(err)
@@ -35,19 +38,20 @@ func CreatePhoneNumberTable(db *sql.DB) {
 
 func CreatePersonTable(db *sql.DB) {
 	sqlTable := `CREATE TABLE IF NOT EXISTS person(
-		id INTEGER PRIMARY KEY,
-		fullname VARCHAR(200),
-		address_id INTEGER,
-		phone_number_id INTEGER,
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		fullname VARCHAR(200) NOT NULL,
+		address_id INTEGER NOT NULL,
+		phone_number_id INTEGER NOT NULL,
         FOREIGN KEY(address_id) REFERENCES address(id),
-        FOREIGN KEY(phone_number_id) REFERENCES phone_number(id)
+        FOREIGN KEY(phone_number_id) REFERENCES phone_number(id),
+        CONSTRAINT unique_person UNIQUE (fullname, address_id, phone_number_id)
 	)`
 	_, err := db.Exec(sqlTable)
 	checkErr(err)
 }
 
 func addPerson(name string, numberID, addressID int64, db *sql.DB) int64 {
-	sqlAddPerson := `INSERT OR REPLACE INTO person(
+	sqlAddPerson := `INSERT INTO person(
 		fullname,
 		address_id,
 		phone_number_id
@@ -66,9 +70,10 @@ func addPerson(name string, numberID, addressID int64, db *sql.DB) int64 {
 }
 
 func addNumber(number string, db *sql.DB) int64 {
-	sqlAddNumber := `INSERT OR REPLACE INTO phone_number(
+	sqlAddNumber := `INSERT INTO phone_number(
 		number
-	) values(?)`
+	) values(?)
+	`
 	stmt, err1 := db.Prepare(sqlAddNumber)
 	checkErr(err1)
 	defer stmt.Close()
@@ -84,7 +89,7 @@ func addNumber(number string, db *sql.DB) int64 {
 
 func addAddress(a *Address, db *sql.DB) int64 {
 	sqlAddNumber := `
-	INSERT OR REPLACE INTO address(
+	INSERT INTO address(
 		street,
 		city,
 		state,
@@ -104,26 +109,31 @@ func addAddress(a *Address, db *sql.DB) int64 {
 	return id
 }
 
-func GetPeopleByNumber(phnum string, db *sql.DB) ([]*Person, error) {
+func getPersonFromDb(pn *PhoneNumber, db *sql.DB) {
 	query := `SELECT person.fullname, phone_number.number, address.street, address.city, address.state, address.zip
 	FROM person
 	JOIN phone_number ON person.phone_number_id = phone_number.id
 	JOIN address ON person.address_id = address.id
-	WHERE phone_number.number = ?`
-	rows, err := db.Query(query, phnum)
-	checkErr(err)
-	defer rows.Close()
+	WHERE phone_number.number=?`
 
-	person := []*Person{}
-	for rows.Next() {
-		p := &Person{}
-		err = rows.Scan(&p.FullName	, &p.Phone.Number, &p.Address.Street, &p.Address.City, &p.Address.State, &p.Address.Zip)
-		checkErr(err)
-
-		person = append(person, p)
+	row := &Person{}
+	matches := []*Person{}
+	err := db.QueryRow(query, pn.Number).Scan(
+		&row.FullName, &row.Phone.Number, &row.Address.Street,
+		&row.Address.City, &row.Address.State, &row.Address.Zip,
+	)
+	switch {
+	case err == sql.ErrNoRows:
+		log.Printf("No person with that number in DB.")
+		pn.updateStatus()
+	case err != nil:
+		log.Fatal(err)
+	default:
+		matches = append(matches, row)
+		pn.Matches = matches
+		log.Println(matches)
+		pn.updateStatus()
 	}
-	return person, nil
-
 }
 
 func (p *Person) Save(db *sql.DB) int64 {
@@ -136,7 +146,10 @@ func (p *Person) Save(db *sql.DB) int64 {
 		Zip:    p.Address.Zip,
 	}
 	addressID := addAddress(address, db)
-	return addPerson(p.FullName, numberID, addressID, db)
+
+	id := addPerson(p.FullName, numberID, addressID, db)
+	println("saved id", id)
+	return id
 
 }
 

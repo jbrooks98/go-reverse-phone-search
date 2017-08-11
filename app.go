@@ -3,21 +3,24 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"github.com/renstrom/fuzzysearch/fuzzy"
 	"log"
 	"net/http"
 	"strconv"
-	"github.com/renstrom/fuzzysearch/fuzzy"
+	"sync"
+	"os"
 )
 
+var initalMatchRank = 99999
 var baseURL = "https://www.truepeoplesearch.com"
 var scraperURL = baseURL + "/results?phoneno="
 
 type App struct {
-	DB     *sql.DB
+	DB *sql.DB
 }
 
 type Address struct {
-	Street string `json:"st"`
+	Street string `json:"street"`
 	City   string `json:"city"`
 	State  string `json:"state"`
 	Zip    string `json:"zip"`
@@ -25,24 +28,60 @@ type Address struct {
 
 type Person struct {
 	FullName    string `json:"fn"`
-	AddressLink string `json:"address_link"`
-	MatchRank   int    `json:"rank"`
+	AddressLink string
+	MatchRank   int
 	Phone       PhoneNumber
 	Address     Address
 }
 
 type PhoneNumber struct {
-	Number string `json:"pn"`
+	Number              string `json:"pn"`
+	Name                string `json:"name"`
+	Matches             []*Person
+	matchLock           sync.Mutex
+	multipleMatchesChan chan bool
+	foundMatchChan      chan bool
+	noMatchChan         chan bool
+}
+
+func (p *PhoneNumber) updateStatus() {
+	p.matchLock.Lock()
+	numOfMatches := len(p.Matches)
+	p.matchLock.Unlock()
+	log.Println(numOfMatches)
+
+	go func() {
+		if numOfMatches == 0 {
+			log.Println("no match channel")
+			p.noMatchChan <- true
+		} else if numOfMatches == 1 {
+			log.Println("1 Match")
+			p.foundMatchChan <- true
+		} else {
+			log.Println("multiples")
+			p.multipleMatchesChan <- true
+		}
+	}()
+}
+
+func exists(name string) bool {
+	if _, err := os.Stat(name); err != nil {
+		if os.IsNotExist(err) {
+			return false
+		}
+	}
+	return true
 }
 
 func (a *App) Initialize(dbName string) {
+	dbName = "./test.db"
 	a.DB = NewSession(dbName)
 	CreateDBTables(a.DB)
 	a.initializeRoutes()
 }
 
-func (a *App) Run(addr string) {
-	log.Fatal(http.ListenAndServe(":8000", nil))
+func (a *App) Run(address string) {
+	log.Fatal(http.ListenAndServe(address, nil))
 }
 
 func (a *App) initializeRoutes() {
@@ -52,8 +91,27 @@ func (a *App) initializeRoutes() {
 	http.Handle("/", fs)
 }
 
-func rankResults(userInput string, value string) int {
-	return fuzzy.RankMatch(userInput, value)
+func (pn *PhoneNumber) handleMultipleResults() *Person {
+	matchedPerson := &Person{}
+	matches := []*Person{}
+	// set an initial rank
+	matchedPerson.MatchRank = initalMatchRank
+	for i := range pn.Matches {
+		log.Println(pn.Name, pn.Matches[i].FullName)
+		rank := fuzzy.RankMatch(pn.Name, pn.Matches[i].FullName)
+		// no match
+		if rank == -1 {
+			continue
+		}
+		pn.Matches[i].MatchRank = rank
+		if pn.Matches[i].MatchRank < matchedPerson.MatchRank {
+			matchedPerson = pn.Matches[i]
+		}
+	}
+	matches = append(matches, matchedPerson)
+	pn.Matches = matches
+
+	return matchedPerson
 }
 
 func isValidPhoneNumber(number string) bool {
@@ -68,66 +126,61 @@ func isValidPhoneNumber(number string) bool {
 }
 
 func (a *App) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
-	log.Println("request heard")
 	if r.Method != "GET" {
-		createJSONResponse(w, http.StatusMethodNotAllowed, "Request method not accepted")
+		msg := "Request method not allowed"
+		log.Println(msg)
+		createJSONErrorResponse(w, http.StatusOK, msg)
+		return
 	}
-	phoneNumber := "3027502606" // r.FormValue("pn")
-	log.Println(phoneNumber)
-	if !isValidPhoneNumber(phoneNumber) {
-		message := map[string]string{"error": "Invalid phone number"}
-		createJSONResponse(w, http.StatusBadRequest, message)
-	}
-	fullName := "Jason E Brooks"// r.FormValue("fn")
-	log.Println(fullName)
-	people, err := GetPeopleByNumber(phoneNumber, a.DB)
-	if err != nil {
-		createJSONResponse(w, http.StatusInternalServerError, err)
-	}
-	if len(people) < 1 {
-		// number not found in the DB so get from the scraper
-		doc := urlDoc{scraperURL + phoneNumber}.getDoc()
-		person, err := GetPersonFromScraper(doc, fullName)
-		if err != nil {
-			message := map[string]string{"error": err.Error()}
-			createJSONResponse(w, http.StatusNotFound, message)
-		}
-        log.Println("came back from scraper")
-		//TODO If link is not populated due to not finding the matching name will throw http panic - indoex out of range
-		addressURL := baseURL + person.AddressLink
-		log.Println(addressURL)
-		addressDoc := urlDoc{addressURL}.getDoc()
-		address := ScrapeAddress(addressDoc)
-		log.Println("scraped the address")
-		person.Address.State = address.State
-		person.Address.City = address.City
-		person.Address.Street = address.Street
-		person.Address.Zip = address.Zip
-		person.Phone.Number = phoneNumber
 
-		person.Save(a.DB)
-		log.Println("saved to db")
-		createJSONResponse(w, http.StatusOK, person)
+	number := r.FormValue("pn")
+	if !isValidPhoneNumber(number) {
+		msg := "Invalid phone number"
+		log.Println(msg)
+		createJSONErrorResponse(w, http.StatusOK, msg)
+		return
 	}
-	if len(people) > 1 {
-		winner := &Person{}
-		winner.MatchRank = 99999
-		for i := range people {
-			people[i].MatchRank = rankResults(fullName, people[i].FullName)
-			if people[i].MatchRank < winner.MatchRank {
-				winner = people[i]
+	pn := &PhoneNumber{}
+	pn.Number = number
+	pn.noMatchChan = make(chan bool)
+	pn.foundMatchChan = make(chan bool)
+	pn.multipleMatchesChan = make(chan bool)
+
+	pn.Name = r.FormValue("fn")
+    log.Println("fn and pn ", pn.Name, number)
+	getPersonFromDb(pn, a.DB)
+
+	for {
+		select {
+		case <-pn.foundMatchChan:
+			createJSONResponse(w, http.StatusOK, pn)
+			return
+		case <-pn.noMatchChan:
+			// get from scraper
+			log.Println("recieved No match")
+			doc := urlDoc{scraperURL + pn.Number}.getDoc()
+			_, err := scrapeNumber(doc, pn, a.DB)
+			if err != nil {
+				createJSONErrorResponse(w, http.StatusOK, err.Error())
+				return
 			}
+		case <-pn.multipleMatchesChan:
+			log.Println("multiple Matches")
+			personMatch := pn.handleMultipleResults()
+			if personMatch.MatchRank == initalMatchRank {
+				createJSONErrorResponse(w, http.StatusOK, "No match found")
+				return
+			}
+			scrapeAddress(personMatch, pn, a.DB)
+			pn.updateStatus()
 		}
-		if winner.FullName != "" {
-			createJSONResponse(w, http.StatusOK, winner)
-		} else {
-			createJSONResponse(w, http.StatusNotFound, "No results found")
-		}
-	} else {
-		log.Println("found in db")
-		createJSONResponse(w, http.StatusOK, people)
 	}
+	createJSONResponse(w, http.StatusOK, pn)
+}
 
+func createJSONErrorResponse(w http.ResponseWriter, code int, errMsg string) {
+	msg := map[string]string{"error": errMsg}
+	createJSONResponse(w, code, msg)
 }
 
 func createJSONResponse(w http.ResponseWriter, code int, payload interface{}) {

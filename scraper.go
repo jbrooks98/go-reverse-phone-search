@@ -1,12 +1,13 @@
 package main
 
 import (
-	"errors"
+	"database/sql"
 	"github.com/PuerkitoBio/goquery"
 	"log"
 	"os"
 	"regexp"
 	"strings"
+	"errors"
 )
 
 type SearchResults struct {
@@ -18,10 +19,10 @@ type DetailResults struct {
 	FullAddress string
 }
 
-func (d *DetailResults) parseFullAddress() *Address {
+func parseFullAddress(fullAdress string) *Address {
 	// TODO come up with better parser
 	a := &Address{}
-	result := strings.Split(d.FullAddress, "\n")
+	result := strings.Split(fullAdress, "\n")
 	a.Street = cleanAddressField(result[1])
 
 	result = strings.Split(result[2], ",")
@@ -70,41 +71,44 @@ func (u urlDoc) getDoc() *goquery.Document {
 	return doc
 }
 
-func findNameMatch(inputName, correctName string) bool {
-	return inputName == correctName
-}
-
-func GetPersonFromScraper(doc *goquery.Document, fullName string) (*Person, error) {
-	person := &Person{}
-	peopleResults := scrapeNumber(doc)
-    log.Println(peopleResults[0].FullName)
-	for i := range peopleResults {
-		log.Println("i", i)
-		if findNameMatch(peopleResults[i].FullName, fullName) {
-			person.AddressLink = peopleResults[i].DetailLink
-			person.FullName = peopleResults[i].FullName
-			log.Println("addy", person.AddressLink)
-			return person, nil
+func isCaptcha(doc *goquery.Document) bool {
+	foundCaptcha := false
+	doc.Find("head").Each(func(i int, s *goquery.Selection) {
+		pageTitle := s.Find("title").Text()
+		if strings.ToLower(pageTitle) == "captcha" {
+			foundCaptcha = true
 		}
-	}
-	return person, errors.New("Cannot find a name match")
-}
-
-func scrapeNumber(doc *goquery.Document) []*SearchResults {
-	// TODO handle captcha issue - just alert user to handle captcha manually
-	r := []*SearchResults{}
-	doc.Find(".card.card-block.shadow-form.card-summary").Each(func(i int, s *goquery.Selection) {
-		sr := &SearchResults{}
-		sr.DetailLink = s.AttrOr("data-detail-link", "")
-		s.Find(".h4").Each(func(j int, h *goquery.Selection) {
-			sr.FullName = strings.TrimSpace(h.Text())
-		})
-		r = append(r, sr)
 	})
-	log.Println(r[0].DetailLink)
-	return r
+	return foundCaptcha
 }
 
+func scrapeNumber(doc *goquery.Document, pn *PhoneNumber, db *sql.DB) (*PhoneNumber, error) {
+	if isCaptcha(doc) {
+		pn.updateStatus()
+		return pn, errors.New("Please handle captcha")
+	}
+	doc.Find("head").Each(func(i int, s *goquery.Selection) {
+		pageTitle := s.Find("title").Text()
+		if strings.ToLower(pageTitle) == "captcha" {
+
+		}
+	})
+	doc.Find(".card.card-block.shadow-form.card-summary").Each(func(i int, s *goquery.Selection) {
+		person := &Person{}
+		person.Phone.Number = pn.Number
+		person.AddressLink = s.AttrOr("data-detail-link", "")
+
+		s.Find(".h4").Each(func(j int, h *goquery.Selection) {
+			person.FullName = strings.TrimSpace(h.Text())
+			pn.Matches = append(pn.Matches, person)
+			log.Println("got fullName")
+		})
+	})
+	pn.updateStatus()
+	return pn, nil
+}
+
+// TODO - possibly put into a Go routine and listen on the chaneel from the scrape Number to do its work
 func cleanAddressField(s string) string {
 	addressStr := strings.TrimSpace(s)
 	// removes multiple whitespaces inside the string
@@ -113,8 +117,17 @@ func cleanAddressField(s string) string {
 	return re_inside_whtsp.ReplaceAllString(addressStr, " ")
 }
 
-func ScrapeAddress(doc *goquery.Document) *Address {
-	d := &DetailResults{}
-	d.FullAddress = doc.Find(".link-to-more").First().Text()
-	return d.parseFullAddress()
+func scrapeAddress(p *Person, pn *PhoneNumber, db *sql.DB) {
+	addressURL := baseURL + p.AddressLink
+	doc := urlDoc{addressURL}.getDoc()
+
+	fullAddress := doc.Find(".link-to-more").First().Text()
+	address := parseFullAddress(fullAddress)
+
+	p.Address.State = address.State
+	p.Address.City = address.City
+	p.Address.Street = address.Street
+	p.Address.Zip = address.Zip
+	p.Save(db)
+	pn.updateStatus()
 }
