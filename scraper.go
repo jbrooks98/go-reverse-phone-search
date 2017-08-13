@@ -1,8 +1,6 @@
 package main
 
 import (
-	"database/sql"
-	"errors"
 	"github.com/PuerkitoBio/goquery"
 	"log"
 	"os"
@@ -82,17 +80,7 @@ func isCaptcha(doc *goquery.Document) bool {
 	return foundCaptcha
 }
 
-func scrapeNumber(doc *goquery.Document, pn *PhoneNumber, db *sql.DB) (*PhoneNumber, error) {
-	if isCaptcha(doc) {
-		pn.updateStatus()
-		return pn, errors.New("Please handle captcha")
-	}
-	doc.Find("head").Each(func(i int, s *goquery.Selection) {
-		pageTitle := s.Find("title").Text()
-		if strings.ToLower(pageTitle) == "captcha" {
-
-		}
-	})
+func scrapeNumber(doc *goquery.Document, pn *PhoneNumber) *PhoneNumber {
 	doc.Find(".card.card-block.shadow-form.card-summary").Each(func(i int, s *goquery.Selection) {
 		person := &Person{}
 		person.Phone.Number = pn.Number
@@ -104,8 +92,7 @@ func scrapeNumber(doc *goquery.Document, pn *PhoneNumber, db *sql.DB) (*PhoneNum
 			log.Println("got fullName")
 		})
 	})
-	pn.updateStatus()
-	return pn, nil
+	return pn
 }
 
 // TODO - possibly put into a Go routine and listen on the chaneel from the scrape Number to do its work
@@ -117,17 +104,15 @@ func cleanAddressField(s string) string {
 	return re_inside_whtsp.ReplaceAllString(addressStr, " ")
 }
 
-func scrapeAddress(p *Person, pn *PhoneNumber, db *sql.DB) {
-	addressURL := baseURL + p.AddressLink
-	doc := urlDoc{addressURL}.getDoc()
-
+func scrapeAddress(doc *goquery.Document) *Person {
+    person := &Person{}
 	fullAddress := doc.Find(".link-to-more").First().Text()
 	address := parseFullAddress(fullAddress)
 
-	p.Address.State = address.State
-	p.Address.City = address.City
-	p.Address.Street = address.Street
-	p.Address.Zip = address.Zip
-	p.Save(db)
-	pn.updateStatus()
+	person.Address.State = address.State
+	person.Address.City = address.City
+	person.Address.Street = address.Street
+	person.Address.Zip = address.Zip
+
+	return person
 }

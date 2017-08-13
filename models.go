@@ -70,16 +70,14 @@ func addPerson(name string, numberID, addressID int64, db *sql.DB) int64 {
 }
 
 func addNumber(number string, db *sql.DB) int64 {
-	sqlAddNumber := `INSERT INTO phone_number(
-		number
-	) values(?)
-	`
+	sqlAddNumber := `INSERT INTO phone_number (number) values (?)`
 	stmt, err1 := db.Prepare(sqlAddNumber)
 	checkErr(err1)
 	defer stmt.Close()
-
+	log.Println("prepare done")
 	r, err2 := stmt.Exec(number)
 	checkErr(err2)
+	log.Println("exec done")
 
 	id, err3 := r.LastInsertId()
 	checkErr(err3)
@@ -127,7 +125,7 @@ func getPersonFromDb(pn *PhoneNumber, db *sql.DB) {
 		log.Printf("No person with that number in DB.")
 		pn.updateStatus()
 	case err != nil:
-		log.Fatal(err)
+		log.Panic(err)
 	default:
 		matches = append(matches, row)
 		pn.Matches = matches
@@ -139,6 +137,7 @@ func getPersonFromDb(pn *PhoneNumber, db *sql.DB) {
 func (p *Person) Save(db *sql.DB) int64 {
 	// TODO wrap in a transaction
 	numberID := addNumber(p.Phone.Number, db)
+	log.Println("numberid", numberID)
 	address := &Address{
 		Street: p.Address.Street,
 		City:   p.Address.City,

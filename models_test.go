@@ -1,18 +1,17 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
+	"os"
 )
 
 func TestModels(t *testing.T) {
 	app := &App{}
 	tableNames := [4]string{"phone_number", "person", "address"}
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	dbPath := dir + "testdb.db"
-	app.Initialize(dbPath)
-	defer os.Remove(dbPath)
+	dbName := "./unittest.db"
+
+	app.Initialize(dbName)
+	defer os.Remove(dbName)
 	defer app.DB.Close()
 
 	// test tables created
@@ -22,30 +21,33 @@ func TestModels(t *testing.T) {
 		app.DB.Exec(query, r)
 	}
 
-	// add a person
+	// test data
+	number := "4112223333"
+	name := "John Doe"
+
 	person := &Person{}
-	person.FullName = "John Doe"
+	person.FullName = name
 	person.Address.State = "DE"
 	person.Address.Zip = "19802"
 	person.Address.Street = "123 Main St."
 	person.Address.City = "Wilmington"
-	person.Phone.Number = "1112223333"
+	person.Phone.Number = number
 	person.Save(app.DB)
 
-	createdPerson, err := GetPeopleByNumber(person.Phone.Number, app.DB)
-	if err != nil {
-		t.Error(err)
-	}
+	pn := &PhoneNumber{}
+	pn.Number = number
+	getPersonFromDb(pn, app.DB)
+
 	// test that a person was added and we can retrieve them from the db
-	if createdPerson[0].FullName != person.FullName {
+	if pn.Matches[0].FullName != person.FullName {
 		t.Error("Person name not found")
 	}
 
-	if createdPerson[0].Phone.Number != person.Phone.Number {
+	if pn.Matches[0].Phone.Number != person.Phone.Number {
 		t.Error("Person number not found")
 	}
 
-	if createdPerson[0].Address.Street != person.Address.Street {
+	if pn.Matches[0].Address.Street != person.Address.Street {
 		t.Error("Person address not found")
 	}
 }

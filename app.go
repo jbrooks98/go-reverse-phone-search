@@ -7,9 +7,9 @@ import (
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"sync"
+	"errors"
 )
 
 var initalMatchRank = 99999
@@ -74,7 +74,6 @@ func (p *PhoneNumber) updateStatus() {
 //}
 
 func (a *App) Initialize(dbName string) {
-	dbName = "./test.db"
 	a.DB = NewSession(dbName)
 	CreateDBTables(a.DB)
 	a.initializeRoutes()
@@ -154,11 +153,14 @@ func (a *App) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
 			// get from scraper
 			log.Println("recieved No match")
 			doc := urlDoc{scraperURL + pn.Number}.getDoc()
-			_, err := scrapeNumber(doc, pn, a.DB)
-			if err != nil {
-				createJSONErrorResponse(w, http.StatusOK, err.Error())
+			if isCaptcha(doc) {
+				pn.updateStatus()
+				createJSONErrorResponse(w, http.StatusOK, errors.New("Please handle captcha").Error())
 				return
 			}
+			pn = scrapeNumber(doc, pn)
+			pn.updateStatus()
+
 		case <-pn.multipleMatchesChan:
 			log.Println("multiple Matches")
 			personMatch := pn.handleMultipleResults()
@@ -166,7 +168,10 @@ func (a *App) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
 				createJSONErrorResponse(w, http.StatusOK, "No match found")
 				return
 			}
-			scrapeAddress(personMatch, pn, a.DB)
+			addressURL := baseURL + personMatch.AddressLink
+			doc := urlDoc{addressURL}.getDoc()
+			personAddress := scrapeAddress(doc)
+			personAddress.Save(a.DB)
 			pn.updateStatus()
 		}
 	}
