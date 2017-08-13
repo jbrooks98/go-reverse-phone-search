@@ -2,12 +2,12 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"github.com/PuerkitoBio/goquery"
 	"log"
 	"os"
 	"regexp"
 	"strings"
-	"errors"
 )
 
 type SearchResults struct {

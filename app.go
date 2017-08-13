@@ -4,11 +4,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"github.com/renstrom/fuzzysearch/fuzzy"
+	"github.com/gorilla/mux"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
-	"os"
 )
 
 var initalMatchRank = 99999
@@ -48,7 +49,6 @@ func (p *PhoneNumber) updateStatus() {
 	p.matchLock.Lock()
 	numOfMatches := len(p.Matches)
 	p.matchLock.Unlock()
-	log.Println(numOfMatches)
 
 	go func() {
 		if numOfMatches == 0 {
@@ -64,14 +64,14 @@ func (p *PhoneNumber) updateStatus() {
 	}()
 }
 
-func exists(name string) bool {
-	if _, err := os.Stat(name); err != nil {
-		if os.IsNotExist(err) {
-			return false
-		}
-	}
-	return true
-}
+//func exists(name string) bool {
+//	if _, err := os.Stat(name); err != nil {
+//		if os.IsNotExist(err) {
+//			return false
+//		}
+//	}
+//	return true
+//}
 
 func (a *App) Initialize(dbName string) {
 	dbName = "./test.db"
@@ -85,8 +85,8 @@ func (a *App) Run(address string) {
 }
 
 func (a *App) initializeRoutes() {
-	// TODO update regex to accept a phone number
-	http.HandleFunc("/search/", a.getPersonByNumber)
+	rtr := mux.NewRouter()
+	rtr.HandleFunc("/api/search/", a.getPersonByNumber).Methods("POST")
 	fs := http.FileServer(http.Dir("static"))
 	http.Handle("/", fs)
 }
@@ -126,14 +126,9 @@ func isValidPhoneNumber(number string) bool {
 }
 
 func (a *App) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
-		msg := "Request method not allowed"
-		log.Println(msg)
-		createJSONErrorResponse(w, http.StatusOK, msg)
-		return
-	}
-
-	number := r.FormValue("pn")
+	params := mux.Vars(r)
+	number := params["pn"]
+	log.Println("num", number)
 	if !isValidPhoneNumber(number) {
 		msg := "Invalid phone number"
 		log.Println(msg)
@@ -146,8 +141,8 @@ func (a *App) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
 	pn.foundMatchChan = make(chan bool)
 	pn.multipleMatchesChan = make(chan bool)
 
-	pn.Name = r.FormValue("fn")
-    log.Println("fn and pn ", pn.Name, number)
+	pn.Name = params["fn"]
+	log.Println("fn and pn ", pn.Name, number)
 	getPersonFromDb(pn, a.DB)
 
 	for {

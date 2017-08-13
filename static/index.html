@@ -3,21 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <title>Reverse Phone Search</title>
-    <h1>Reverse Phone Search</h1>
-
+    <link rel="stylesheet" href="/css/main.css"></link>
 </head>
 <body>
+<h1>Reverse Phone Search</h1>
 <div id="demo">
-    <form action="/search/" method="GET" id="numbersearch">
-        Phone Number:<br>
-        <input type="text" name="pn" id="pn" value="">
-        <br>
-        Full Name:<br>
-        <input type="text" name="fn" id="fn" value="">
-        <br><br>
+    <form action="/" method="post" id="search-form">
+        <p>Phone Number:<span class="required">*</span></p>
+        <input type="text" name="pn" id="pn" value="" placeholder="Enter a person's phone number">
+        <p>Name:<span class="required">*</span></p>
+        <input type="text" name="fn" id="fn" value="" placeholder="Enter a person's full name">
         <input type="submit" value="Submit">
     </form>
 </div>
-<script src="/js/main.js"></script>
+<div id="results-container"></div>
+
 </body>
+<script src="/js/main.js"></script>
+<!--javascript phone number library from TelTech  https://github.com/albeebe/phoneformat.js-->
+<script src="/js/phone-format.min.js"></script>
 </html>
