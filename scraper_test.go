@@ -14,37 +14,37 @@ func getAbsPath(p string) string {
 
 func TestNumberScraping(t *testing.T) {
 	filePath := getAbsPath("/testfiles/results.html")
-	doc := FileDoc{filePath}.getDoc()
-	pn := &PhoneNumber{}
+	doc := fileDoc{filePath}.getDoc()
+	pn := &phoneNumber{}
 	scrapeNumber(doc, pn)
-	if pn.Matches[0].AddressLink != "/results?phoneno=3027502606&rid=0x0" || pn.Matches[0].FullName != "Donald James Willis Sr" {
-		t.Error("scraping phone number failed")
+	if pn.Matches[0].addressLink != "/results?phoneno=3027502606&rid=0x0" || pn.Matches[0].FullName != "Donald James Willis Sr" {
+		t.Error("scraping phone Number failed")
 	}
 }
 
 func TestAddressScraping(t *testing.T) {
 	filePath := getAbsPath("/testfiles/details.html")
-	doc := FileDoc{filePath}.getDoc()
-	person := &Person{}
+	doc := fileDoc{filePath}.getDoc()
+	person := &person{}
 	person = scrapeAddress(doc, person)
 	if person.Address.Street != "1 Blue Spruce Dr" {
-		t.Error("scraping address street failed")
+		t.Error("scraping Address Street failed")
 	}
 	if person.Address.State != "DE" {
-		t.Error("scraping address state failed")
+		t.Error("scraping Address State failed")
 	}
 	if person.Address.City != "Bear" {
-		t.Error("scraping address city failed")
+		t.Error("scraping Address City failed")
 	}
 	if person.Address.Zip != "19701-4125" {
-		t.Error("scraping address zip failed")
+		t.Error("scraping Address Zip failed")
 	}
 
 }
 
 func TestCaptchaScraping(t *testing.T) {
 	filePath := getAbsPath("/testfiles/captcha.html")
-	doc := FileDoc{filePath}.getDoc()
+	doc := fileDoc{filePath}.getDoc()
 	result := isCaptcha(doc)
 
 	if result != true {

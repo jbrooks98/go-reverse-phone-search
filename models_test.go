@@ -7,15 +7,15 @@ import (
 
 func TestModels(t *testing.T) {
 	app := &App{}
-	tableNames := [4]string{"phone_number", "person", "address"}
+	tableNames := [4]string{"phone_number", "person", "Address"}
 	dbName := "./unittest.db"
 
-	app.Initialize(dbName)
+	app.initialize(dbName)
 	defer os.Remove(dbName)
 	defer app.DB.Close()
 
 	// test tables created
-	CreateDBTables(app.DB)
+	createDBTables(app.DB)
 	for r := range tableNames {
 		query := `SELECT name FROM sqlite_master WHERE type='table' AND name=?`
 		app.DB.Exec(query, r)
@@ -25,29 +25,29 @@ func TestModels(t *testing.T) {
 	number := "4112223333"
 	name := "John Doe"
 
-	person := &Person{}
+	person := &person{}
 	person.FullName = name
 	person.Address.State = "DE"
 	person.Address.Zip = "19802"
 	person.Address.Street = "123 Main St."
 	person.Address.City = "Wilmington"
-	person.Phone.Number = number
+	person.phone.Number = number
 	person.save(app.DB)
 
-	pn := &PhoneNumber{}
+	pn := &phoneNumber{}
 	pn.Number = number
 	getPersonFromDb(pn, app.DB)
 
 	// test that a person was added and we can retrieve them from the db
 	if pn.Matches[0].FullName != person.FullName {
-		t.Error("Person name not found")
+		t.Error("person name not found")
 	}
 
-	if pn.Matches[0].Phone.Number != person.Phone.Number {
-		t.Error("Person number not found")
+	if pn.Matches[0].phone.Number != person.phone.Number {
+		t.Error("person Number not found")
 	}
 
 	if pn.Matches[0].Address.Street != person.Address.Street {
-		t.Error("Person address not found")
+		t.Error("person Address not found")
 	}
 }

@@ -19,25 +19,25 @@ type App struct {
 	DB *sql.DB
 }
 
-type Address struct {
-	Street string `json:"street"`
-	City   string `json:"city"`
-	State  string `json:"state"`
-	Zip    string `json:"zip"`
+type address struct {
+	Street string `json:"Street"`
+	City   string `json:"City"`
+	State  string `json:"State"`
+	Zip    string `json:"Zip"`
 }
 
-type Person struct {
+type person struct {
 	FullName    string `json:"fn"`
-	AddressLink string
-	MatchRank   int
-	Phone       PhoneNumber
-	Address     Address
+	addressLink string
+	matchRank   int
+	phone       phoneNumber
+	Address     address
 }
 
-func (p *Person) save(db *sql.DB) int64 {
+func (p *person) save(db *sql.DB) int64 {
 	// TODO wrap in a transaction
-	numberID := addNumber(p.Phone.Number, db)
-	address := &Address{
+	numberID := addNumber(p.phone.Number, db)
+	address := &address{
 		Street: p.Address.Street,
 		City:   p.Address.City,
 		State:  p.Address.State,
@@ -50,42 +50,42 @@ func (p *Person) save(db *sql.DB) int64 {
 
 }
 
-type PhoneNumber struct {
+type phoneNumber struct {
 	Number              string `json:"pn"`
-	Name                string `json:"name"`
-	Matches             []*Person
+	name                string
+	Matches             []*person
 	matchLock           sync.Mutex
 	multipleMatchesChan chan bool
 	foundMatchChan      chan bool
 	noMatchChan         chan bool
+	getAddressChan      chan bool
 }
 
-func (p *PhoneNumber) updateStatus() {
+func (p *phoneNumber) updateStatus() {
 	p.matchLock.Lock()
 	numOfMatches := len(p.Matches)
 	p.matchLock.Unlock()
 
 	go func() {
-		if numOfMatches == 0 {
-			log.Println("no match channel")
+		if numOfMatches == 1 && p.Matches[0].Address.Street == "" {
+			p.getAddressChan <- true
+		} else if numOfMatches == 0 {
 			p.noMatchChan <- true
 		} else if numOfMatches == 1 {
-			log.Println("1 Match")
 			p.foundMatchChan <- true
 		} else {
-			log.Println("multiples")
 			p.multipleMatchesChan <- true
 		}
 	}()
 }
 
-func (a *App) Initialize(dbName string) {
-	a.DB = NewSession(dbName)
-	CreateDBTables(a.DB)
+func (a *App) initialize(dbName string) {
+	a.DB = newSession(dbName)
+	createDBTables(a.DB)
 	a.initializeRoutes()
 }
 
-func (a *App) Run(address string) {
+func (a *App) run(address string) {
 	log.Fatal(http.ListenAndServe(address, nil))
 }
 
@@ -95,27 +95,25 @@ func (a *App) initializeRoutes() {
 	http.Handle("/", fs)
 }
 
-func (pn *PhoneNumber) handleMultipleResults() *PhoneNumber {
-	matchedPerson := &Person{}
-	matches := []*Person{}
+func (pn *phoneNumber) handleMultipleResults() *phoneNumber {
+	matchedPerson := &person{}
+	matches := []*person{}
 	// set an initial rank
-	matchedPerson.MatchRank = initalMatchRank
+	matchedPerson.matchRank = initalMatchRank
 	for i := range pn.Matches {
-		log.Println(pn.Name, pn.Matches[i].FullName)
-		rank := fuzzy.RankMatch(pn.Name, pn.Matches[i].FullName)
+		rank := fuzzy.RankMatch(pn.name, pn.Matches[i].FullName)
 		// no match
 		if rank == -1 {
 			continue
 		}
-		pn.Matches[i].MatchRank = rank
-		if pn.Matches[i].MatchRank < matchedPerson.MatchRank {
+		pn.Matches[i].matchRank = rank
+		if pn.Matches[i].matchRank < matchedPerson.matchRank {
 			matchedPerson.FullName = pn.Matches[i].FullName
-			matchedPerson.Phone.Number = pn.Number
-			matchedPerson.MatchRank = pn.Matches[i].MatchRank
-			matchedPerson.AddressLink = pn.Matches[i].AddressLink
+			matchedPerson.phone.Number = pn.Number
+			matchedPerson.matchRank = pn.Matches[i].matchRank
+			matchedPerson.addressLink = pn.Matches[i].addressLink
 		}
 	}
-	log.Println("matched person", matchedPerson)
 	matches = append(matches, matchedPerson)
 	pn.Matches = matches
 
@@ -138,21 +136,19 @@ func (a *App) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
 		createJSONErrorResponse(w, http.StatusOK, errors.New("Only POST method allowed").Error())
 	}
 	number := r.FormValue("pn")
-	log.Println("num", number)
 	if !isValidPhoneNumber(number) {
-		msg := "Invalid phone number"
-		log.Println(msg)
+		msg := "Invalid phone Number"
 		createJSONErrorResponse(w, http.StatusOK, msg)
 		return
 	}
-	pn := &PhoneNumber{}
+	pn := &phoneNumber{}
 	pn.Number = number
 	pn.noMatchChan = make(chan bool)
 	pn.foundMatchChan = make(chan bool)
 	pn.multipleMatchesChan = make(chan bool)
+	pn.getAddressChan = make(chan bool)
 
-	pn.Name = r.FormValue("fn")
-	log.Println("fn and pn ", pn.Name, number)
+	pn.name = r.FormValue("fn")
 	getPersonFromDb(pn, a.DB)
 
 	for {
@@ -162,7 +158,6 @@ func (a *App) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
 			return
 		case <-pn.noMatchChan:
 			// get from scraper
-			log.Println("recieved No match")
 			url := scraperURL + pn.Number
 			doc := urlDoc{url}.getDoc()
 			if isCaptcha(doc) {
@@ -176,20 +171,18 @@ func (a *App) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
 				createJSONErrorResponse(w, http.StatusOK, "No results found")
 				return
 			}
-			addressURL := baseURL + pn.Matches[0].AddressLink
-			addressDoc := urlDoc{addressURL}.getDoc()
-			person := scrapeAddress(addressDoc, pn.Matches[0])
-			person.save(a.DB)
 			pn.updateStatus()
 
 		case <-pn.multipleMatchesChan:
-			log.Println("multiple Matches")
 			pn := pn.handleMultipleResults()
-			if pn.Matches[0].MatchRank == initalMatchRank {
+			if pn.Matches[0].matchRank == initalMatchRank {
 				createJSONErrorResponse(w, http.StatusOK, "No results found")
 				return
 			}
-			addressURL := baseURL + pn.Matches[0].AddressLink
+			pn.updateStatus()
+
+		case <-pn.getAddressChan:
+			addressURL := baseURL + pn.Matches[0].addressLink
 			doc := urlDoc{addressURL}.getDoc()
 			person := scrapeAddress(doc, pn.Matches[0])
 

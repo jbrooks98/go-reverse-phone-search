@@ -8,18 +8,9 @@ import (
 	"strings"
 )
 
-type SearchResults struct {
-	DetailLink string
-	FullName   string
-}
-
-type DetailResults struct {
-	FullAddress string
-}
-
-func parseFullAddress(fullAdress string) *Address {
+func parseFullAddress(fullAdress string) *address {
 	// TODO come up with better parser
-	a := &Address{}
+	a := &address{}
 	result := strings.Split(fullAdress, "\n")
 	a.Street = cleanAddressField(result[1])
 
@@ -37,7 +28,7 @@ type scraperDoc interface {
 	getDoc() *goquery.Document
 }
 
-type FileDoc struct {
+type fileDoc struct {
 	FilePath string
 }
 
@@ -46,7 +37,7 @@ type urlDoc struct {
 }
 
 // used for testing
-func (f FileDoc) getDoc() *goquery.Document {
+func (f fileDoc) getDoc() *goquery.Document {
 	doc := &goquery.Document{}
 	d, e := os.Open(f.FilePath)
 	if e != nil {
@@ -80,17 +71,15 @@ func isCaptcha(doc *goquery.Document) bool {
 	return foundCaptcha
 }
 
-func scrapeNumber(doc *goquery.Document, pn *PhoneNumber) *PhoneNumber {
+func scrapeNumber(doc *goquery.Document, pn *phoneNumber) *phoneNumber {
 	doc.Find(".card.card-block.shadow-form.card-summary").Each(func(i int, s *goquery.Selection) {
-		person := &Person{}
-		person.Phone.Number = pn.Number
-		person.AddressLink = s.AttrOr("data-detail-link", "")
-		log.Println("address scraper", person.AddressLink)
+		person := &person{}
+		person.phone.Number = pn.Number
+		person.addressLink = s.AttrOr("data-detail-link", "")
 
 		s.Find(".h4").Each(func(j int, h *goquery.Selection) {
 			person.FullName = strings.TrimSpace(h.Text())
 			pn.Matches = append(pn.Matches, person)
-			log.Println("got fullName")
 		})
 	})
 	return pn
@@ -105,7 +94,7 @@ func cleanAddressField(s string) string {
 	return re_inside_whtsp.ReplaceAllString(addressStr, " ")
 }
 
-func scrapeAddress(doc *goquery.Document, person *Person) *Person {
+func scrapeAddress(doc *goquery.Document, person *person) *person {
 	fullAddress := doc.Find(".link-to-more").First().Text()
 	address := parseFullAddress(fullAddress)
 

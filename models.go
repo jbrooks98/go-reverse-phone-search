@@ -6,43 +6,43 @@ import (
 	"log"
 )
 
-func NewSession(name string) *sql.DB {
+func newSession(name string) *sql.DB {
 	db, err := sql.Open("sqlite3", name)
 	checkErr(err)
 
 	return db
 }
 
-func CreateAddressTable(db *sql.DB) {
-	sqlTable := `CREATE TABLE IF NOT EXISTS address(
+func createAddressTable(db *sql.DB) {
+	sqlTable := `CREATE TABLE IF NOT EXISTS Address(
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	street VARCHAR(150) NOT NULL,
-	city VARCHAR(150) NOT NULL,
-	state VARCHAR(20) NOT NULL,
-	zip VARCHAR(20) NOT NULL,
-    CONSTRAINT unique_address UNIQUE (street, city, state, zip)
+	Street VARCHAR(150) NOT NULL,
+	City VARCHAR(150) NOT NULL,
+	State VARCHAR(20) NOT NULL,
+	Zip VARCHAR(20) NOT NULL,
+    CONSTRAINT unique_address UNIQUE (Street, City, State, Zip)
 	)`
 	_, err := db.Exec(sqlTable)
 	checkErr(err)
 }
 
-func CreatePhoneNumberTable(db *sql.DB) {
+func createPhoneNumberTable(db *sql.DB) {
 	sqlTable := `CREATE TABLE IF NOT EXISTS phone_number(
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		number VARCHAR(15) NOT NULL,
-		CONSTRAINT unique_number UNIQUE (number)
+		Number VARCHAR(15) NOT NULL,
+		CONSTRAINT unique_number UNIQUE (Number)
 	)`
 	_, err := db.Exec(sqlTable)
 	checkErr(err)
 }
 
-func CreatePersonTable(db *sql.DB) {
+func createPersonTable(db *sql.DB) {
 	sqlTable := `CREATE TABLE IF NOT EXISTS person(
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		fullname VARCHAR(200) NOT NULL,
 		address_id INTEGER NOT NULL,
 		phone_number_id INTEGER NOT NULL,
-        FOREIGN KEY(address_id) REFERENCES address(id),
+        FOREIGN KEY(address_id) REFERENCES Address(id),
         FOREIGN KEY(phone_number_id) REFERENCES phone_number(id),
         CONSTRAINT unique_person UNIQUE (fullname, address_id, phone_number_id)
 	)`
@@ -70,7 +70,7 @@ func addPerson(name string, numberID, addressID int64, db *sql.DB) int64 {
 }
 
 func addNumber(number string, db *sql.DB) int64 {
-	sqlAddNumber := `INSERT OR REPLACE INTO phone_number (number) values (?)`
+	sqlAddNumber := `INSERT OR REPLACE INTO phone_number (Number) values (?)`
 	stmt, err1 := db.Prepare(sqlAddNumber)
 	checkErr(err1)
 	defer stmt.Close()
@@ -84,13 +84,13 @@ func addNumber(number string, db *sql.DB) int64 {
 	return id
 }
 
-func addAddress(a *Address, db *sql.DB) int64 {
+func addAddress(a *address, db *sql.DB) int64 {
 	sqlAddNumber := `
-	INSERT OR REPLACE INTO address(
-		street,
-		city,
-		state,
-		zip
+	INSERT OR REPLACE INTO Address(
+		Street,
+		City,
+		State,
+		Zip
 	) values(?, ?, ?, ?)
 	`
 	stmt, err1 := db.Prepare(sqlAddNumber)
@@ -106,22 +106,21 @@ func addAddress(a *Address, db *sql.DB) int64 {
 	return id
 }
 
-func getPersonFromDb(pn *PhoneNumber, db *sql.DB) {
-	query := `SELECT person.fullname, phone_number.number, address.street, address.city, address.state, address.zip
+func getPersonFromDb(pn *phoneNumber, db *sql.DB) {
+	query := `SELECT person.fullname, phone_number.Number, Address.Street, Address.City, Address.State, Address.Zip
 	FROM person
 	JOIN phone_number ON person.phone_number_id = phone_number.id
-	JOIN address ON person.address_id = address.id
-	WHERE phone_number.number=?`
+	JOIN Address ON person.address_id = Address.id
+	WHERE phone_number.Number=?`
 
-	row := &Person{}
-	matches := []*Person{}
+	row := &person{}
+	matches := []*person{}
 	err := db.QueryRow(query, pn.Number).Scan(
-		&row.FullName, &row.Phone.Number, &row.Address.Street,
+		&row.FullName, &row.phone.Number, &row.Address.Street,
 		&row.Address.City, &row.Address.State, &row.Address.Zip,
 	)
 	switch {
 	case err == sql.ErrNoRows:
-		log.Printf("No person with that number in DB.")
 		pn.updateStatus()
 	case err != nil:
 		log.Panic(err)
@@ -132,10 +131,10 @@ func getPersonFromDb(pn *PhoneNumber, db *sql.DB) {
 	}
 }
 
-func CreateDBTables(db *sql.DB) {
-	CreateAddressTable(db)
-	CreatePhoneNumberTable(db)
-	CreatePersonTable(db)
+func createDBTables(db *sql.DB) {
+	createAddressTable(db)
+	createPhoneNumberTable(db)
+	createPersonTable(db)
 }
 
 func checkErr(err error) {
