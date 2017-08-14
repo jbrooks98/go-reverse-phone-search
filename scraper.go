@@ -85,6 +85,7 @@ func scrapeNumber(doc *goquery.Document, pn *PhoneNumber) *PhoneNumber {
 		person := &Person{}
 		person.Phone.Number = pn.Number
 		person.AddressLink = s.AttrOr("data-detail-link", "")
+		log.Println("address scraper", person.AddressLink)
 
 		s.Find(".h4").Each(func(j int, h *goquery.Selection) {
 			person.FullName = strings.TrimSpace(h.Text())
@@ -104,8 +105,7 @@ func cleanAddressField(s string) string {
 	return re_inside_whtsp.ReplaceAllString(addressStr, " ")
 }
 
-func scrapeAddress(doc *goquery.Document) *Person {
-    person := &Person{}
+func scrapeAddress(doc *goquery.Document, person *Person) *Person {
 	fullAddress := doc.Find(".link-to-more").First().Text()
 	address := parseFullAddress(fullAddress)
 

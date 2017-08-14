@@ -4,6 +4,8 @@ var form = document.getElementById("search-form");
 form.addEventListener('submit', function (event) {
     event.preventDefault();
     sendData();
+    document.getElementById("pn").value = "";
+    document.getElementById("fn").value = "";
 });
 
 function sendData() {
@@ -39,15 +41,10 @@ function sendData() {
     if (!isValidName(name)) {
         return
     }
-    var params = "pn=" + number + "&fn=" + name;
-    console.error(params);
+    var params = "pn=" + cleanPhone(number) + "&fn=" + name;
     xmlhttp.open("POST","/api/search/", true);
-    console.error("post");
-    xmlhttp.setRequestHeader("Content-Type", "application/json");
-    // xmlhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    console.error("request header");
+    xmlhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
     xmlhttp.send(params);
-    console.error("params sent");
 }
 
 // creates a div to be append to the main results container div
@@ -72,12 +69,14 @@ function successHandler(response) {
         console.error(html);
     } else {
         html +=
-            "<p>" + response.pn + "</p>" +
-            '<p>' + response.name + '</p><br>' +
-            '<p>' + response.Matches[0].Address.street + '</p>' +
-            '<p>' + response.Matches[0].Address.city + '</p>' +
-            '<p>' + response.Matches[0].Address.state + '</p>' +
-            '<p>' + response.Matches[0].Address.zip + '</p>';
+            "<h4>Name and Number</h4>" +
+            "<div class='result-labels'>Phone Number: </div><div class='result-values'>" + formatLocal("US", response.pn) + "</div><br/>" +
+            "<div class='result-labels'>Full Name: </div><div class='result-values'>" + response.Matches[0].fn + "</div><br>" +
+            "<h4>Address</h4>" +
+            "<div class='result-labels'>Street: </div><div class='result-values'>" + response.Matches[0].Address.street + "</div><br/>" +
+            "<div class='result-labels'>City: </div><div class='result-values'>" + response.Matches[0].Address.city + "</div><br/>" +
+            "<div class='result-labels'>State: </div><div class='result-values'>" + response.Matches[0].Address.state + "</div><br/>" +
+            "<div class='result-labels'>Zip: </div><div class='result-values'>" + response.Matches[0].Address.zip + "</div>";
     }
     var resultsDiv = createDiv();
     resultsDiv.innerHTML = html;

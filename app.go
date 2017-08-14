@@ -3,13 +3,12 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"github.com/renstrom/fuzzysearch/fuzzy"
-	"github.com/gorilla/mux"
 	"log"
 	"net/http"
 	"strconv"
 	"sync"
-	"errors"
 )
 
 var initalMatchRank = 99999
@@ -33,6 +32,22 @@ type Person struct {
 	MatchRank   int
 	Phone       PhoneNumber
 	Address     Address
+}
+
+func (p *Person) save(db *sql.DB) int64 {
+	// TODO wrap in a transaction
+	numberID := addNumber(p.Phone.Number, db)
+	address := &Address{
+		Street: p.Address.Street,
+		City:   p.Address.City,
+		State:  p.Address.State,
+		Zip:    p.Address.Zip,
+	}
+	addressID := addAddress(address, db)
+
+	id := addPerson(p.FullName, numberID, addressID, db)
+	return id
+
 }
 
 type PhoneNumber struct {
@@ -64,15 +79,6 @@ func (p *PhoneNumber) updateStatus() {
 	}()
 }
 
-//func exists(name string) bool {
-//	if _, err := os.Stat(name); err != nil {
-//		if os.IsNotExist(err) {
-//			return false
-//		}
-//	}
-//	return true
-//}
-
 func (a *App) Initialize(dbName string) {
 	a.DB = NewSession(dbName)
 	CreateDBTables(a.DB)
@@ -84,13 +90,12 @@ func (a *App) Run(address string) {
 }
 
 func (a *App) initializeRoutes() {
-	rtr := mux.NewRouter()
-	rtr.HandleFunc("/api/search/", a.getPersonByNumber).Methods("POST")
+	http.HandleFunc("/api/search/", a.getPersonByNumber)
 	fs := http.FileServer(http.Dir("static"))
 	http.Handle("/", fs)
 }
 
-func (pn *PhoneNumber) handleMultipleResults() *Person {
+func (pn *PhoneNumber) handleMultipleResults() *PhoneNumber {
 	matchedPerson := &Person{}
 	matches := []*Person{}
 	// set an initial rank
@@ -104,29 +109,35 @@ func (pn *PhoneNumber) handleMultipleResults() *Person {
 		}
 		pn.Matches[i].MatchRank = rank
 		if pn.Matches[i].MatchRank < matchedPerson.MatchRank {
-			matchedPerson = pn.Matches[i]
+			matchedPerson.FullName = pn.Matches[i].FullName
+			matchedPerson.Phone.Number = pn.Number
+			matchedPerson.MatchRank = pn.Matches[i].MatchRank
+			matchedPerson.AddressLink = pn.Matches[i].AddressLink
 		}
 	}
+	log.Println("matched person", matchedPerson)
 	matches = append(matches, matchedPerson)
 	pn.Matches = matches
 
-	return matchedPerson
+	return pn
 }
 
 func isValidPhoneNumber(number string) bool {
-	if len(number) > 10 {
+	num, err := strconv.Atoi(number)
+	if err != nil {
 		return false
 	}
-	_, err := strconv.Atoi(number)
-	if err != nil {
+	if len(strconv.Itoa(num)) != 10 {
 		return false
 	}
 	return true
 }
 
 func (a *App) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
-	params := mux.Vars(r)
-	number := params["pn"]
+	if r.Method != "POST" {
+		createJSONErrorResponse(w, http.StatusOK, errors.New("Only POST method allowed").Error())
+	}
+	number := r.FormValue("pn")
 	log.Println("num", number)
 	if !isValidPhoneNumber(number) {
 		msg := "Invalid phone number"
@@ -140,7 +151,7 @@ func (a *App) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
 	pn.foundMatchChan = make(chan bool)
 	pn.multipleMatchesChan = make(chan bool)
 
-	pn.Name = params["fn"]
+	pn.Name = r.FormValue("fn")
 	log.Println("fn and pn ", pn.Name, number)
 	getPersonFromDb(pn, a.DB)
 
@@ -152,26 +163,37 @@ func (a *App) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
 		case <-pn.noMatchChan:
 			// get from scraper
 			log.Println("recieved No match")
-			doc := urlDoc{scraperURL + pn.Number}.getDoc()
+			url := scraperURL + pn.Number
+			doc := urlDoc{url}.getDoc()
 			if isCaptcha(doc) {
 				pn.updateStatus()
-				createJSONErrorResponse(w, http.StatusOK, errors.New("Please handle captcha").Error())
+				errTxt := "Please handle captcha " + url
+				createJSONErrorResponse(w, http.StatusOK, errors.New(errTxt).Error())
 				return
 			}
 			pn = scrapeNumber(doc, pn)
+			if len(pn.Matches) < 1 {
+				createJSONErrorResponse(w, http.StatusOK, "No results found")
+				return
+			}
+			addressURL := baseURL + pn.Matches[0].AddressLink
+			addressDoc := urlDoc{addressURL}.getDoc()
+			person := scrapeAddress(addressDoc, pn.Matches[0])
+			person.save(a.DB)
 			pn.updateStatus()
 
 		case <-pn.multipleMatchesChan:
 			log.Println("multiple Matches")
-			personMatch := pn.handleMultipleResults()
-			if personMatch.MatchRank == initalMatchRank {
-				createJSONErrorResponse(w, http.StatusOK, "No match found")
+			pn := pn.handleMultipleResults()
+			if pn.Matches[0].MatchRank == initalMatchRank {
+				createJSONErrorResponse(w, http.StatusOK, "No results found")
 				return
 			}
-			addressURL := baseURL + personMatch.AddressLink
+			addressURL := baseURL + pn.Matches[0].AddressLink
 			doc := urlDoc{addressURL}.getDoc()
-			personAddress := scrapeAddress(doc)
-			personAddress.Save(a.DB)
+			person := scrapeAddress(doc, pn.Matches[0])
+
+			person.save(a.DB)
 			pn.updateStatus()
 		}
 	}
@@ -186,7 +208,7 @@ func createJSONErrorResponse(w http.ResponseWriter, code int, errMsg string) {
 func createJSONResponse(w http.ResponseWriter, code int, payload interface{}) {
 	response, _ := json.Marshal(payload)
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/x-www-form-urlencoded")
 	w.WriteHeader(code)
 	w.Write(response)
 }

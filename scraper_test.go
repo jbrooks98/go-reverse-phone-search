@@ -25,7 +25,8 @@ func TestNumberScraping(t *testing.T) {
 func TestAddressScraping(t *testing.T) {
 	filePath := getAbsPath("/testfiles/details.html")
 	doc := FileDoc{filePath}.getDoc()
-	person := scrapeAddress(doc)
+	person := &Person{}
+	person = scrapeAddress(doc, person)
 	if person.Address.Street != "1 Blue Spruce Dr" {
 		t.Error("scraping address street failed")
 	}

@@ -4,14 +4,23 @@ h1, h3 {
 .required {
     color:red;
 }
+.result-labels {
+    display:inline-block;
+    padding-left:15px;
+    width: 100px;
+    white-space: nowrap;
+    color: #43D1AF;
+}
+.result-values {display:inline-block; padding-left:25px;}
+
 #search-form, #results, #results-container {
     font: 95% Arial, Helvetica, sans-serif;
     max-width: 400px;
-    margin: 10px auto;
+    margin: auto;
     padding: 16px;
     background: #F7F7F7;
 }
-#search-form h1{
+#search-form h1 p{
     background: #43D1AF;
     padding: 20px 0;
     font-size: 140%;

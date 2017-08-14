@@ -1,8 +1,8 @@
 package main
 
 import (
-	"testing"
 	"os"
+	"testing"
 )
 
 func TestModels(t *testing.T) {
@@ -32,7 +32,7 @@ func TestModels(t *testing.T) {
 	person.Address.Street = "123 Main St."
 	person.Address.City = "Wilmington"
 	person.Phone.Number = number
-	person.Save(app.DB)
+	person.save(app.DB)
 
 	pn := &PhoneNumber{}
 	pn.Number = number
