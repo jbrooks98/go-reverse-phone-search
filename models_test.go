@@ -6,7 +6,7 @@ import (
 )
 
 func TestModels(t *testing.T) {
-	app := &App{}
+	app := &app{}
 	tableNames := [4]string{"phone_number", "person", "Address"}
 	dbName := "./unittest.db"
 

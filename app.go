@@ -15,7 +15,7 @@ var initalMatchRank = 99999
 var baseURL = "https://www.truepeoplesearch.com"
 var scraperURL = baseURL + "/results?phoneno="
 
-type App struct {
+type app struct {
 	DB *sql.DB
 }
 
@@ -35,7 +35,6 @@ type person struct {
 }
 
 func (p *person) save(db *sql.DB) int64 {
-	// TODO wrap in a transaction
 	numberID := addNumber(p.phone.Number, db)
 	address := &address{
 		Street: p.Address.Street,
@@ -79,17 +78,17 @@ func (p *phoneNumber) updateStatus() {
 	}()
 }
 
-func (a *App) initialize(dbName string) {
+func (a *app) initialize(dbName string) {
 	a.DB = newSession(dbName)
 	createDBTables(a.DB)
 	a.initializeRoutes()
 }
 
-func (a *App) run(address string) {
+func (a *app) run(address string) {
 	log.Fatal(http.ListenAndServe(address, nil))
 }
 
-func (a *App) initializeRoutes() {
+func (a *app) initializeRoutes() {
 	http.HandleFunc("/api/search/", a.getPersonByNumber)
 	fs := http.FileServer(http.Dir("static"))
 	http.Handle("/", fs)
@@ -131,7 +130,7 @@ func isValidPhoneNumber(number string) bool {
 	return true
 }
 
-func (a *App) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
+func (a *app) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		createJSONErrorResponse(w, http.StatusOK, errors.New("Only POST method allowed").Error())
 	}
@@ -162,7 +161,7 @@ func (a *App) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
 			doc := urlDoc{url}.getDoc()
 			if isCaptcha(doc) {
 				pn.updateStatus()
-				errTxt := "Please handle captcha " + url
+				errTxt := "Please handle captcha @" + url
 				createJSONErrorResponse(w, http.StatusOK, errors.New(errTxt).Error())
 				return
 			}

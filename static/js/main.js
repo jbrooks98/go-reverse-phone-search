@@ -4,8 +4,6 @@ var form = document.getElementById("search-form");
 form.addEventListener('submit', function (event) {
     event.preventDefault();
     sendData();
-    document.getElementById("pn").value = "";
-    document.getElementById("fn").value = "";
 });
 
 function sendData() {
@@ -23,6 +21,8 @@ function sendData() {
             else {
                 errorHandler(xmlhttp.status);
             }
+            document.getElementById("pn").value = "";
+            document.getElementById("fn").value = "";
         }
     };
     var number =  document.getElementById("pn").value;
@@ -34,7 +34,7 @@ function sendData() {
     if (!isValidName(name)) {
         return
     }
-    var params = "pn=" + cleanPhone(number) + "&fn=" + name;
+    var params = "pn=" + cleanPhone(number) + "&fn=" + cleanName(name);
     xmlhttp.open("POST","/api/search/", true);
     xmlhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
     xmlhttp.send(params);
@@ -81,4 +81,8 @@ function isValidName(fullName) {
         return false
     }
     return true
+}
+
+function cleanName(fullName) {
+    return fullName.replace(/[^0-9a-z]/gi, '');
 }

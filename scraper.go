@@ -8,22 +8,6 @@ import (
 	"strings"
 )
 
-func parseFullAddress(fullAdress string) *address {
-	// TODO come up with better parser
-	a := &address{}
-	result := strings.Split(fullAdress, "\n")
-	a.Street = cleanAddressField(result[1])
-
-	result = strings.Split(result[2], ",")
-	a.City = cleanAddressField(result[0])
-
-	result = strings.Split(cleanAddressField(result[1]), " ")
-	a.State = cleanAddressField(result[0])
-	a.Zip = cleanAddressField(result[1])
-
-	return a
-}
-
 type scraperDoc interface {
 	getDoc() *goquery.Document
 }
@@ -41,12 +25,12 @@ func (f fileDoc) getDoc() *goquery.Document {
 	doc := &goquery.Document{}
 	d, e := os.Open(f.FilePath)
 	if e != nil {
-		log.Fatal(e)
+		log.Println(e)
 	}
 	defer d.Close()
 	doc, err := goquery.NewDocumentFromReader(d)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 	return doc
 }
@@ -55,9 +39,25 @@ func (u urlDoc) getDoc() *goquery.Document {
 	doc := &goquery.Document{}
 	doc, err := goquery.NewDocument(u.urlPath)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 	return doc
+}
+
+func parseFullAddress(fullAdress string) *address {
+	// TODO come up with better parser
+	a := &address{}
+	result := strings.Split(fullAdress, "\n")
+	a.Street = cleanAddressField(result[1])
+
+	result = strings.Split(result[2], ",")
+	a.City = cleanAddressField(result[0])
+
+	result = strings.Split(cleanAddressField(result[1]), " ")
+	a.State = cleanAddressField(result[0])
+	a.Zip = cleanAddressField(result[1])
+
+	return a
 }
 
 func isCaptcha(doc *goquery.Document) bool {
@@ -85,7 +85,6 @@ func scrapeNumber(doc *goquery.Document, pn *phoneNumber) *phoneNumber {
 	return pn
 }
 
-// TODO - possibly put into a Go routine and listen on the chaneel from the scrape Number to do its work
 func cleanAddressField(s string) string {
 	addressStr := strings.TrimSpace(s)
 	// removes multiple whitespaces inside the string

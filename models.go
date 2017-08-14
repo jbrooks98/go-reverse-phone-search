@@ -139,6 +139,6 @@ func createDBTables(db *sql.DB) {
 
 func checkErr(err error) {
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 }
