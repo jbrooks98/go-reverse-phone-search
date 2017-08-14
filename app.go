@@ -56,8 +56,8 @@ type phoneNumber struct {
 	matchLock           sync.Mutex
 	multipleMatchesChan chan bool
 	foundMatchChan      chan bool
-	noMatchChan         chan bool
-	getAddressChan      chan bool
+	scrapeNumberChan    chan bool
+	scrapeAddressChan   chan bool
 }
 
 func (p *phoneNumber) updateStatus() {
@@ -67,9 +67,9 @@ func (p *phoneNumber) updateStatus() {
 
 	go func() {
 		if numOfMatches == 1 && p.Matches[0].Address.Street == "" {
-			p.getAddressChan <- true
+			p.scrapeAddressChan <- true
 		} else if numOfMatches == 0 {
-			p.noMatchChan <- true
+			p.scrapeNumberChan <- true
 		} else if numOfMatches == 1 {
 			p.foundMatchChan <- true
 		} else {
@@ -142,10 +142,10 @@ func (a *app) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
 	}
 	pn := &phoneNumber{}
 	pn.Number = number
-	pn.noMatchChan = make(chan bool)
+	pn.scrapeNumberChan = make(chan bool)
 	pn.foundMatchChan = make(chan bool)
 	pn.multipleMatchesChan = make(chan bool)
-	pn.getAddressChan = make(chan bool)
+	pn.scrapeAddressChan = make(chan bool)
 
 	pn.name = r.FormValue("fn")
 	getPersonFromDb(pn, a.DB)
@@ -155,13 +155,13 @@ func (a *app) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
 		case <-pn.foundMatchChan:
 			createJSONResponse(w, http.StatusOK, pn)
 			return
-		case <-pn.noMatchChan:
+		case <-pn.scrapeNumberChan:
 			// get from scraper
 			url := scraperURL + pn.Number
 			doc := urlDoc{url}.getDoc()
 			if isCaptcha(doc) {
 				pn.updateStatus()
-				errTxt := "Please handle captcha @" + url
+				errTxt := "Please handle captcha: " + url
 				createJSONErrorResponse(w, http.StatusOK, errors.New(errTxt).Error())
 				return
 			}
@@ -180,7 +180,7 @@ func (a *app) getPersonByNumber(w http.ResponseWriter, r *http.Request) {
 			}
 			pn.updateStatus()
 
-		case <-pn.getAddressChan:
+		case <-pn.scrapeAddressChan:
 			addressURL := baseURL + pn.Matches[0].addressLink
 			doc := urlDoc{addressURL}.getDoc()
 			person := scrapeAddress(doc, pn.Matches[0])

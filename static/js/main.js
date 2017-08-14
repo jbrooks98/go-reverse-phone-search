@@ -12,8 +12,7 @@ function sendData() {
 
     xmlhttp.onreadystatechange = function() {
         if (xmlhttp.readyState === 4) {
-            var containerHTML = "<h3>Results:</h3>";
-            document.getElementById("results-container").innerHTML = containerHTML;
+            document.getElementById("results-container").innerHTML = "<h3>Results:</h3>";
             if (xmlhttp.status === 200) {
                 var jsonResponse = JSON.parse(xmlhttp.responseText);
                 successHandler(jsonResponse);
@@ -51,14 +50,17 @@ function createDiv() {
 
 function errorHandler(err) {
     var errorDiv = createDiv();
-    var html = "<h3>" + err + "</h3>";
-    errorDiv.innerHTML = html;
+    errorDiv.className += "error";
+    errorDiv.innerHTML = err;
 }
 
 function successHandler(response) {
     var html = "";
+    var resultsDiv = createDiv();
+
     if ("error" in response) {
-        html += "<p>" + response.error + "</p>";
+        resultsDiv.className += "error";
+        html += response.error;
     } else {
         html +=
             "<h4>Name and Number</h4>" +
@@ -70,7 +72,6 @@ function successHandler(response) {
             "<div class='result-labels'>State: </div><div class='result-values'>" + response.Matches[0].Address.State + "</div><br/>" +
             "<div class='result-labels'>Zip: </div><div class='result-values'>" + response.Matches[0].Address.Zip + "</div>";
     }
-    var resultsDiv = createDiv();
     resultsDiv.innerHTML = html;
 }
 
