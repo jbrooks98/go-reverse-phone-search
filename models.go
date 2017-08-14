@@ -20,7 +20,7 @@ func createAddressTable(db *sql.DB) {
 	City VARCHAR(150) NOT NULL,
 	State VARCHAR(20) NOT NULL,
 	Zip VARCHAR(20) NOT NULL,
-    CONSTRAINT unique_address UNIQUE (Street, City, State, Zip)
+	CONSTRAINT unique_address UNIQUE (Street, City, State, Zip)
 	)`
 	_, err := db.Exec(sqlTable)
 	checkErr(err)
@@ -28,9 +28,9 @@ func createAddressTable(db *sql.DB) {
 
 func createPhoneNumberTable(db *sql.DB) {
 	sqlTable := `CREATE TABLE IF NOT EXISTS phone_number(
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		Number VARCHAR(15) NOT NULL,
-		CONSTRAINT unique_number UNIQUE (Number)
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	Number VARCHAR(15) NOT NULL,
+	CONSTRAINT unique_number UNIQUE (Number)
 	)`
 	_, err := db.Exec(sqlTable)
 	checkErr(err)
@@ -38,13 +38,13 @@ func createPhoneNumberTable(db *sql.DB) {
 
 func createPersonTable(db *sql.DB) {
 	sqlTable := `CREATE TABLE IF NOT EXISTS person(
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		fullname VARCHAR(200) NOT NULL,
-		address_id INTEGER NOT NULL,
-		phone_number_id INTEGER NOT NULL,
-        FOREIGN KEY(address_id) REFERENCES Address(id),
-        FOREIGN KEY(phone_number_id) REFERENCES phone_number(id),
-        CONSTRAINT unique_person UNIQUE (fullname, address_id, phone_number_id)
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	fullname VARCHAR(200) NOT NULL,
+	address_id INTEGER NOT NULL,
+	phone_number_id INTEGER NOT NULL,
+	FOREIGN KEY(address_id) REFERENCES Address(id),
+	FOREIGN KEY(phone_number_id) REFERENCES phone_number(id),
+	CONSTRAINT unique_person UNIQUE (fullname, address_id, phone_number_id)
 	)`
 	_, err := db.Exec(sqlTable)
 	checkErr(err)
@@ -52,9 +52,9 @@ func createPersonTable(db *sql.DB) {
 
 func addPerson(name string, numberID, addressID int64, db *sql.DB) int64 {
 	sqlAddPerson := `INSERT OR REPLACE INTO person(
-		fullname,
-		address_id,
-		phone_number_id
+	fullname,
+	address_id,
+	phone_number_id
 	) values(?, ?, ?)`
 	stmt, err1 := db.Prepare(sqlAddPerson)
 	checkErr(err1)
@@ -87,10 +87,10 @@ func addNumber(number string, db *sql.DB) int64 {
 func addAddress(a *address, db *sql.DB) int64 {
 	sqlAddNumber := `
 	INSERT OR REPLACE INTO Address(
-		Street,
-		City,
-		State,
-		Zip
+	Street,
+	City,
+	State,
+	Zip
 	) values(?, ?, ?, ?)
 	`
 	stmt, err1 := db.Prepare(sqlAddNumber)
